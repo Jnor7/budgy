@@ -1,0 +1,367 @@
+{
+  "format": "budget-jr-export",
+  "version": 1,
+  "exportedAt": "2026-08-18T00:00:00Z",
+  "sourceApp": {
+    "name": "BUDGET JR",
+    "platform": "ios-swiftdata",
+    "appVersion": "unknown",
+    "schemaVersion": 1
+  },
+  "exportStrategy": {
+    "legacyIdMode": "export_generated",
+    "legacyIdWarning": "IDs generated only during export are stable inside this ZIP but not guaranteed across multiple exports unless a future persistent migrationID is added to SwiftData models.",
+    "datePolicy": {
+      "dateOnly": "YYYY-MM-DD",
+      "dateTime": "ISO-8601 UTC"
+    },
+    "moneyPolicy": {
+      "format": "decimal-string",
+      "examples": ["2700.00", "655957.00"],
+      "reason": "Avoid JSON floating point ambiguity during migration."
+    }
+  },
+  "checksums": {
+    "fileHash": "sha256-of-complete-zip",
+    "manifestHash": "sha256-of-manifest-json",
+    "dataHashes": {
+      "data/tenants.json": "sha256",
+      "data/rent_payments.json": "sha256",
+      "data/tenant_debts.json": "sha256",
+      "data/dubai_parts.json": "sha256",
+      "data/dubai_sales.json": "sha256",
+      "data/dubai_expenses.json": "sha256",
+      "data/dubai_cash_movements.json": "sha256",
+      "data/businesses.json": "sha256",
+      "data/business_contacts.json": "sha256",
+      "data/business_items.json": "sha256",
+      "data/business_transactions.json": "sha256",
+      "data/business_bookings.json": "sha256",
+      "data/business_tasks.json": "sha256",
+      "data/budget_entries.json": "sha256",
+      "data/subscriptions.json": "sha256",
+      "data/trips.json": "sha256",
+      "data/flights.json": "sha256",
+      "data/accommodations.json": "sha256",
+      "data/trip_activities.json": "sha256",
+      "data/trip_checklist_items.json": "sha256",
+      "data/attachments.json": "sha256"
+    }
+  },
+  "entities": {
+    "tenants": {
+      "count": 1,
+      "file": "data/tenants.json",
+      "legacyPrefix": "tenant"
+    },
+    "rentPayments": {
+      "count": 1,
+      "file": "data/rent_payments.json",
+      "legacyPrefix": "rent_payment",
+      "parent": "tenants"
+    },
+    "tenantDebts": {
+      "count": 1,
+      "file": "data/tenant_debts.json",
+      "legacyPrefix": "tenant_debt",
+      "parent": "tenants"
+    },
+    "dubaiParts": {
+      "count": 1,
+      "file": "data/dubai_parts.json",
+      "legacyPrefix": "dubai_part"
+    },
+    "dubaiSales": {
+      "count": 1,
+      "file": "data/dubai_sales.json",
+      "legacyPrefix": "dubai_sale",
+      "parent": "dubaiParts"
+    },
+    "dubaiExpenses": {
+      "count": 1,
+      "file": "data/dubai_expenses.json",
+      "legacyPrefix": "dubai_expense",
+      "parent": "dubaiParts optional"
+    },
+    "dubaiCashMovements": {
+      "count": 1,
+      "file": "data/dubai_cash_movements.json",
+      "legacyPrefix": "dubai_cash_movement"
+    },
+    "businesses": {
+      "count": 1,
+      "file": "data/businesses.json",
+      "legacyPrefix": "business"
+    },
+    "businessContacts": {
+      "count": 1,
+      "file": "data/business_contacts.json",
+      "legacyPrefix": "business_contact",
+      "parent": "businesses"
+    },
+    "businessItems": {
+      "count": 1,
+      "file": "data/business_items.json",
+      "legacyPrefix": "business_item",
+      "parent": "businesses"
+    },
+    "businessTransactions": {
+      "count": 1,
+      "file": "data/business_transactions.json",
+      "legacyPrefix": "business_transaction",
+      "parent": "businesses"
+    },
+    "businessBookings": {
+      "count": 1,
+      "file": "data/business_bookings.json",
+      "legacyPrefix": "business_booking",
+      "parent": "businesses"
+    },
+    "businessTasks": {
+      "count": 1,
+      "file": "data/business_tasks.json",
+      "legacyPrefix": "business_task",
+      "parent": "businesses"
+    },
+    "budgetEntries": {
+      "count": 1,
+      "file": "data/budget_entries.json",
+      "legacyPrefix": "budget_entry"
+    },
+    "subscriptions": {
+      "count": 1,
+      "file": "data/subscriptions.json",
+      "legacyPrefix": "subscription"
+    },
+    "trips": {
+      "count": 1,
+      "file": "data/trips.json",
+      "legacyPrefix": "trip"
+    },
+    "flights": {
+      "count": 1,
+      "file": "data/flights.json",
+      "legacyPrefix": "flight",
+      "parent": "trips"
+    },
+    "accommodations": {
+      "count": 1,
+      "file": "data/accommodations.json",
+      "legacyPrefix": "accommodation",
+      "parent": "trips"
+    },
+    "tripActivities": {
+      "count": 1,
+      "file": "data/trip_activities.json",
+      "legacyPrefix": "trip_activity",
+      "parent": "trips"
+    },
+    "tripChecklistItems": {
+      "count": 1,
+      "file": "data/trip_checklist_items.json",
+      "legacyPrefix": "trip_checklist_item",
+      "parent": "trips"
+    },
+    "attachments": {
+      "count": 1,
+      "file": "data/attachments.json",
+      "legacyPrefix": "attachment",
+      "parents": ["dubaiParts", "businesses"]
+    }
+  },
+  "importOrder": [
+    "tenants",
+    "businesses",
+    "dubaiParts",
+    "trips",
+    "budgetEntries",
+    "subscriptions",
+    "dubaiCashMovements",
+    "rentPayments",
+    "tenantDebts",
+    "businessContacts",
+    "businessItems",
+    "businessTransactions",
+    "businessBookings",
+    "businessTasks",
+    "dubaiSales",
+    "dubaiExpenses",
+    "flights",
+    "accommodations",
+    "tripActivities",
+    "tripChecklistItems",
+    "attachments"
+  ],
+  "sampleData": {
+    "tenants": [
+      {
+        "legacy_id": "tenant_000001",
+        "name": "Locataire 1",
+        "monthlyRent": "700.00",
+        "dueDay": 5,
+        "note": "",
+        "createdAt": "2026-01-12T10:30:00Z"
+      }
+    ],
+    "rentPayments": [
+      {
+        "legacy_id": "rent_payment_000001",
+        "tenant_legacy_id": "tenant_000001",
+        "month": 5,
+        "year": 2026,
+        "isPaid": true,
+        "paidDate": "2026-05-04",
+        "amountDue": "700.00",
+        "amountReceived": "700.00",
+        "carryOver": "0.00",
+        "note": ""
+      }
+    ],
+    "tenantDebts": [
+      {
+        "legacy_id": "tenant_debt_000001",
+        "tenant_legacy_id": "tenant_000001",
+        "label": "Badge perdu",
+        "amount": "25.00",
+        "month": 5,
+        "year": 2026,
+        "isPaid": false,
+        "createdAt": "2026-05-02T12:00:00Z"
+      }
+    ],
+    "dubaiParts": [
+      {
+        "legacy_id": "dubai_part_000001",
+        "name": "Moteur Hiace 2L",
+        "category": "Moteur",
+        "quantityBought": 3,
+        "quantitySold": 0,
+        "purchasePriceAED": "875.00",
+        "targetSalePriceAED": "1750.00",
+        "note": "",
+        "cashWithdrawnAED": "0.00",
+        "createdAt": "2026-01-12T10:00:00Z"
+      }
+    ],
+    "dubaiSales": [
+      {
+        "legacy_id": "dubai_sale_000001",
+        "part_legacy_id": "dubai_part_000001",
+        "quantity": 1,
+        "unitSalePriceAmount": "1750.00",
+        "currency": "AED",
+        "date": "2026-06-20",
+        "customerName": "",
+        "note": ""
+      }
+    ],
+    "dubaiExpenses": [
+      {
+        "legacy_id": "dubai_expense_000001",
+        "part_legacy_id": null,
+        "title": "Dédouanement",
+        "amount": "600.00",
+        "currency": "USD",
+        "date": "2026-01-12",
+        "category": "Dédouanement",
+        "note": ""
+      }
+    ],
+    "dubaiCashMovements": [
+      {
+        "legacy_id": "dubai_cash_movement_000001",
+        "title": "Décaissement business",
+        "amount": "400.00",
+        "currency": "EUR",
+        "date": "2026-06-27",
+        "type": "cash_out",
+        "category": "Voyage",
+        "note": "",
+        "status": "planned"
+      }
+    ],
+    "businesses": [
+      {
+        "legacy_id": "business_000001",
+        "name": "Lavage Auto",
+        "type": "service",
+        "icon": "car.fill",
+        "colorHex": "#3B82F6",
+        "note": "",
+        "isActive": true,
+        "modules": {
+          "clients": true,
+          "suppliers": false,
+          "stock": false,
+          "purchases": false,
+          "sales": true,
+          "reservations": true,
+          "services": true,
+          "tasks": true,
+          "payments": true,
+          "documents": false,
+          "kpi": true
+        },
+        "createdAt": "2026-01-12T10:00:00Z"
+      }
+    ],
+    "budgetEntries": [
+      {
+        "legacy_id": "budget_entry_000001",
+        "title": "Salaire",
+        "amount": "2700.00",
+        "type": "revenu",
+        "category": "Salaire",
+        "bucket": "Revenus",
+        "scope": "Perso",
+        "date": "2026-05-12",
+        "note": "",
+        "potentialAmount": "0.00",
+        "status": "non"
+      }
+    ],
+    "trips": [
+      {
+        "legacy_id": "trip_000001",
+        "title": "Asie 2026",
+        "destinationSummary": "Kuala Lumpur",
+        "startDate": "2026-05-14",
+        "endDate": "2026-05-19",
+        "peopleCount": 2,
+        "targetBudget": "2500.00",
+        "notes": "",
+        "isCompleted": false,
+        "createdAt": "2026-01-12T10:00:00Z"
+      }
+    ],
+    "flights": [
+      {
+        "legacy_id": "flight_000001",
+        "trip_legacy_id": "trip_000001",
+        "airline": "Transavia",
+        "fromCode": "CDG",
+        "toCode": "IST",
+        "departDate": "2026-05-14T17:20:00Z",
+        "arriveDate": "2026-05-18T22:05:00Z",
+        "price": "150.00",
+        "bookingLink": "",
+        "attachmentNote": "",
+        "status": "reserve"
+      }
+    ],
+    "attachments": [
+      {
+        "legacy_id": "attachment_000001",
+        "parent_type": "dubai_part",
+        "dubai_part_legacy_id": "dubai_part_000001",
+        "business_legacy_id": null,
+        "fileName": "facture.pdf",
+        "mimeType": "application/pdf",
+        "sizeBytes": 123456,
+        "sha256": "sha256-of-file",
+        "relativePath": "attachments/attachment_000001.pdf",
+        "createdAt": "2026-01-12T10:00:00Z"
+      }
+    ]
+  }
+}

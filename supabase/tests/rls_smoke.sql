@@ -1,0 +1,8 @@
+-- Execute with Supabase CLI after creating two test users.
+-- set local role authenticated;
+-- set local request.jwt.claims = '{"sub":"USER_A_UUID","role":"authenticated"}';
+-- insert into public.budget_entries(user_id,title,amount,type,category,bucket,scope,date)
+-- values('USER_A_UUID','A only',10,'revenu','Test','Test','Test',current_date);
+-- select count(*) = 1 as user_a_sees_own from public.budget_entries;
+-- update public.budget_entries set amount=20 where user_id='USER_B_UUID'; -- must affect 0 rows
+-- delete from public.budget_entries where user_id='USER_B_UUID'; -- must affect 0 rows
