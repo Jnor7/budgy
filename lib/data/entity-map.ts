@@ -23,9 +23,26 @@ export const entityTables: { [K in AppDataKey]: string } = {
   tripActivities: "trip_activities",
   tripChecklistItems: "trip_checklist_items",
   attachments: "attachments",
+  // --- V2 ---
+  userModules: "user_modules",
+  tripMembers: "trip_members",
+  tripInvitations: "trip_invitations",
+  notifications: "notifications",
+  tripExpenses: "trip_expenses",
+  tripExpenseSplits: "trip_expense_splits",
 };
 
+/**
+ * Tables V2 pilotées par des RPC SECURITY DEFINER ou par des helpers dédiés.
+ * Elles sont chargées par `loadAll` mais ne doivent pas passer par `create()`.
+ */
+export const rpcManagedKeys: AppDataKey[] = ["tripMembers", "tripInvitations", "notifications"];
+
 export const entityKeys = Object.keys(entityTables) as AppDataKey[];
+/**
+ * Ordre d'import de l'archive Budget JR. NE PAS MODIFIER : il est répliqué
+ * à l'identique dans la fonction SQL `import_budgy_archive` (migration 202608180006).
+ */
 export const importOrder: AppDataKey[] = [
   "tenants", "dubaiParts", "businesses", "budgetEntries", "subscriptions", "trips",
   "rentPayments", "tenantDebts", "dubaiSales", "dubaiExpenses", "dubaiCashMovements",

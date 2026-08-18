@@ -1,47 +1,229 @@
 "use client";
 
-import { ArrowUpRight, BellRing, BriefcaseBusiness, Building2, CalendarDays, CircleDollarSign, FileArchive, Lightbulb, Plane, ReceiptText, Settings, TrendingUp, WalletCards } from "lucide-react";
+import {
+  ArrowUpRight, BriefcaseBusiness, Building2, ChevronRight, CircleDollarSign,
+  Plane, Plus, RefreshCcw, Sparkles,
+} from "lucide-react";
 import Link from "next/link";
-import { BubbleHeader, Card, MetricCard } from "@/components/ui/card";
+import { useMemo } from "react";
+import { NotificationCenter } from "@/components/notification-center";
+import { V2Donut, V2Empty, V2Skeleton } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
-import { budgetSummary, entriesForMonth, isConfirmed } from "@/lib/domain/budget";
+import { budgetSummary, entriesForMonth, expenseBreakdown, monthSpent } from "@/lib/domain/budget";
+import { totalDueForMonth } from "@/lib/domain/tenants";
+import { visibleTrips } from "@/lib/domain/permissions";
 import { tripTotals } from "@/lib/domain/trips";
-import { eur, shortDate } from "@/lib/format";
+import { eur, fullDate, monthLabel } from "@/lib/format";
+
+const greeting = (hour: number) => (hour < 6 ? "Bonne nuit" : hour < 18 ? "Bonjour" : "Bonsoir");
 
 export default function HomePage() {
-  const { data, ready } = useBudgyData();
-  if (!ready) return <main className="page stack"><div className="skeleton" style={{height:150}}/><div className="grid-2"><div className="skeleton"/><div className="skeleton"/></div></main>;
-  const monthEntries = entriesForMonth(data.budgetEntries, new Date());
-  const summary = budgetSummary(monthEntries);
-  const activeTrips = data.trips.filter((trip) => !trip.isCompleted);
-  const openTasks = data.businessTasks.filter((task) => !task.isDone).length;
-  const recent = [...monthEntries].filter(isConfirmed).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,4);
-  const nextTrip = activeTrips.sort((a,b)=>a.startDate.localeCompare(b.startDate))[0];
-  const nextTripTotal = nextTrip ? tripTotals(data.flights.filter((x)=>x.tripId===nextTrip.id), data.accommodations.filter((x)=>x.tripId===nextTrip.id), data.tripActivities.filter((x)=>x.tripId===nextTrip.id)).totalBudget : 0;
-  return <main className="page page-narrow stack">
-    <BubbleHeader title="Aujourd’hui" subtitle="Votre quotidien, en un coup d’œil" />
-    <div className="grid-2">
-      <MetricCard icon={WalletCards} label="Solde réalisé" value={eur.format(summary.confirmedBalance)} detail="Ce mois" tone={summary.confirmedBalance >= 0 ? "green" : "orange"}/>
-      <MetricCard icon={TrendingUp} label="Solde potentiel" value={eur.format(summary.projectedBalance)} detail="Réalisé + à venir" tone="purple"/>
-    </div>
-    <Card><div className="spread"><h2 className="section-title">Actions rapides</h2><span className="eyebrow">Budgy</span></div><div className="grid-2">
-      <Link href="/budget" className="card-flat row"><span className="icon-tile icon-purple"><CircleDollarSign size={20}/></span><strong>Transaction</strong></Link>
-      <Link href="/trips" className="card-flat row"><span className="icon-tile icon-cyan"><Plane size={20}/></span><strong>Voyage</strong></Link>
-      <Link href="/business/tenants" className="card-flat row"><span className="icon-tile icon-purple"><Building2 size={20}/></span><strong>Loyer</strong></Link>
-      <Link href="/business" className="card-flat row"><span className="icon-tile icon-green"><BriefcaseBusiness size={20}/></span><strong>Business</strong></Link>
-      <Link href="/subscriptions" className="card-flat row"><span className="icon-tile icon-orange"><BellRing size={20}/></span><strong>Abonnements</strong></Link>
-    </div></Card>
-    <Card><div className="spread"><h2 className="section-title">Activité récente</h2><Link className="accent small" href="/budget">Voir tout</Link></div>
-      {recent.length === 0 ? <p className="muted">Aucune transaction confirmée ce mois.</p> : recent.map((entry)=><div className="list-row" key={entry.id}><span className={`icon-tile ${entry.type === "revenu" ? "icon-green" : "icon-orange"}`}><ReceiptText size={18}/></span><div className="list-main"><strong>{entry.title}</strong><span className="muted small">{entry.category} · {shortDate(entry.date)}</span></div><strong className={entry.type === "revenu" ? "positive" : "negative"}>{entry.type === "revenu" ? "+" : "−"}{eur.format(entry.amount)}</strong></div>)}
-    </Card>
-    <div className="bubble-header" style={{padding:18,textAlign:"left"}}><div className="row"><span className="icon-tile icon-purple"><Lightbulb size={20}/></span><div><h2 className="section-title" style={{margin:0}}>Insights</h2><p className="muted small" style={{marginTop:4}}>{summary.pendingExpenses > 0 ? `${eur.format(summary.pendingExpenses)} de dépenses sont encore à venir.` : "Toutes vos dépenses du mois sont à jour."}</p></div></div></div>
-    <Card><h2 className="section-title">Vue globale</h2><div className="stack-sm">
-      <Link className="list-row" href="/business"><span className="icon-tile icon-purple"><BriefcaseBusiness size={20}/></span><div className="list-main"><strong>Business</strong><span className="muted small">{data.businesses.length} activité(s) · {openTasks} tâche(s)</span></div><ArrowUpRight size={18}/></Link>
-      <Link className="list-row" href="/business/tenants"><span className="icon-tile icon-purple"><Building2 size={20}/></span><div className="list-main"><strong>Gestion des loyers</strong><span className="muted small">{data.tenants.length} locataire(s)</span></div><ArrowUpRight size={18}/></Link>
-      <Link className="list-row" href="/trips"><span className="icon-tile icon-cyan"><CalendarDays size={20}/></span><div className="list-main"><strong>{nextTrip?.title ?? "Voyages"}</strong><span className="muted small">{nextTrip ? `${shortDate(nextTrip.startDate)} · ${eur.format(nextTripTotal)}` : "Aucun voyage à venir"}</span></div><ArrowUpRight size={18}/></Link>
-      <Link className="list-row" href="/subscriptions"><span className="icon-tile icon-orange"><BellRing size={20}/></span><div className="list-main"><strong>Abonnements</strong><span className="muted small">{data.subscriptions.filter((item)=>item.isActive).length} actif(s)</span></div><ArrowUpRight size={18}/></Link>
-      <Link className="list-row" href="/settings/migration"><span className="icon-tile icon-purple"><FileArchive size={20}/></span><div className="list-main"><strong>Migration Budget JR</strong><span className="muted small">Importer une archive ZIP</span></div><ArrowUpRight size={18}/></Link>
-      <Link className="list-row" href="/settings"><span className="icon-tile icon-purple"><Settings size={20}/></span><div className="list-main"><strong>Compte & données</strong><span className="muted small">Session, synchronisation et onboarding</span></div><ArrowUpRight size={18}/></Link>
-    </div></Card>
-  </main>;
+  const { data, ready, isModuleOn, modules, profile, userId } = useBudgyData();
+  const today = useMemo(() => new Date(), []);
+
+  const monthEntries = useMemo(() => entriesForMonth(data.budgetEntries, today), [data.budgetEntries, today]);
+  const summary = useMemo(() => budgetSummary(monthEntries), [monthEntries]);
+  const breakdown = useMemo(() => expenseBreakdown(monthEntries).slice(0, 4), [monthEntries]);
+  const spent = useMemo(() => monthSpent(monthEntries), [monthEntries]);
+
+  const trips = useMemo(
+    () => visibleTrips(data.trips, data.tripMembers, userId).filter((trip) => !trip.isCompleted),
+    [data.tripMembers, data.trips, userId],
+  );
+  const nextTrip = useMemo(
+    () => [...trips].sort((a, b) => a.startDate.localeCompare(b.startDate))[0],
+    [trips],
+  );
+
+  const rentExpected = useMemo(
+    () => data.tenants.reduce(
+      (sum, tenant) => sum + totalDueForMonth(tenant, data.rentPayments, data.tenantDebts, today.getFullYear(), today.getMonth() + 1),
+      0,
+    ),
+    [data.rentPayments, data.tenantDebts, data.tenants, today],
+  );
+  const rentReceived = useMemo(
+    () => data.rentPayments
+      .filter((payment) => payment.month === today.getMonth() + 1 && payment.year === today.getFullYear())
+      .reduce((sum, payment) => sum + payment.amountReceived, 0),
+    [data.rentPayments, today],
+  );
+
+  const businessRevenue = data.businessTransactions.filter((item) => item.type === "revenu").reduce((sum, item) => sum + item.amount, 0);
+  const businessExpenses = data.businessTransactions.filter((item) => item.type === "depense").reduce((sum, item) => sum + item.amount, 0);
+  const activeSubscriptions = data.subscriptions.filter((item) => item.isActive);
+  const subscriptionsTotal = activeSubscriptions.reduce((sum, item) => sum + item.amount, 0);
+
+  if (!ready) {
+    return (
+      <main className="page v2-page v2">
+        <V2Skeleton height={70} />
+        <V2Skeleton height={165} />
+        <V2Skeleton height={150} />
+      </main>
+    );
+  }
+
+  const nextTripTotal = nextTrip
+    ? tripTotals(
+        data.flights.filter((item) => item.tripId === nextTrip.id),
+        data.accommodations.filter((item) => item.tripId === nextTrip.id),
+        data.tripActivities.filter((item) => item.tripId === nextTrip.id),
+      ).totalBudget
+    : 0;
+
+  const quickActions = [
+    isModuleOn("budget") && { href: "/budget", label: "Dépense", icon: CircleDollarSign, color: "var(--v2-violet)" },
+    isModuleOn("budget") && { href: "/budget", label: "Revenu", icon: ArrowUpRight, color: "var(--v2-positive)" },
+    isModuleOn("trips") && { href: "/trips", label: "Voyage", icon: Plane, color: "#0ea5e9" },
+    isModuleOn("rentals") && { href: "/rentals", label: "Paiement loyer", icon: Building2, color: "#38bdf8" },
+    isModuleOn("businesses") && { href: "/business", label: "Vente", icon: BriefcaseBusiness, color: "#f59e0b" },
+  ].filter(Boolean) as { href: string; label: string; icon: typeof Plus; color: string }[];
+
+  return (
+    <main className="page v2-page v2">
+      <header className="v2-greet">
+        <div>
+          <h1>{greeting(today.getHours())} {profile?.username ?? "👋"}</h1>
+          <p>Voici un résumé de votre situation.</p>
+        </div>
+        <NotificationCenter />
+      </header>
+
+      {modules.length === 0 ? (
+        <V2Empty
+          icon={Sparkles}
+          title="Votre espace est prêt à être configuré"
+          text="Choisissez les fonctions qui correspondent à votre vie : budget, abonnements, loyers, business ou voyages."
+          action={<Link className="button button-primary" href="/onboarding">Configurer Budgy</Link>}
+        />
+      ) : null}
+
+      {isModuleOn("budget") ? (
+        <>
+          <section className="v2-hero">
+            <span className="v2-hero-label">Solde total</span>
+            <strong className="v2-hero-amount">{eur.format(summary.confirmedBalance)}</strong>
+            <div className="v2-hero-split">
+              <div>
+                <span>↗ Revenus</span>
+                <strong>{eur.format(summary.confirmedIncome)}</strong>
+              </div>
+              <div>
+                <span>↘ Dépenses</span>
+                <strong>{eur.format(summary.confirmedExpenses)}</strong>
+              </div>
+              <div>
+                <span>↗ Potentiel</span>
+                <strong>{eur.format(summary.projectedBalance)}</strong>
+              </div>
+            </div>
+          </section>
+
+          <section className="v2-card">
+            <div className="v2-card-head">
+              <div>
+                <h2>Budget du mois</h2>
+                <span className="muted small">{monthLabel(today)}</span>
+              </div>
+              <Link className="v2-link" href="/budget">Détail</Link>
+            </div>
+            {spent === 0 ? (
+              <p className="muted small" style={{ margin: 0 }}>
+                Aucune dépense enregistrée ce mois. Ajoutez-en une depuis l&apos;onglet Budget.
+              </p>
+            ) : (
+              <div className="v2-donut-wrap">
+                <V2Donut
+                  slices={breakdown}
+                  centerValue={eur.format(spent)}
+                  centerLabel="dépensés"
+                  size={130}
+                  thickness={18}
+                />
+                <div className="v2-legend">
+                  {breakdown.map((slice, index) => (
+                    <div className="v2-legend-item" key={slice.label}>
+                      <span className="v2-legend-dot" style={{ background: `var(--v2-cat-${["fixes","variables","loyers","abonnements"][index] ?? "autres"})` }} />
+                      <span className="v2-legend-label">{slice.label}</span>
+                      <span className="v2-legend-values">
+                        <b>{Math.round(slice.share * 100)}%</b>
+                        <span>{eur.format(slice.amount)}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        </>
+      ) : null}
+
+      {quickActions.length > 0 ? (
+        <section className="v2-card">
+          <div className="v2-card-head"><h2>Actions rapides</h2></div>
+          <div className="v2-quick">
+            {quickActions.map((action) => (
+              <Link className="v2-quick-item" href={action.href} key={action.label}>
+                <action.icon size={20} style={{ color: action.color }} />
+                {action.label}
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="v2-card">
+        <div className="v2-card-head"><h2>Aperçu rapide</h2></div>
+
+        {isModuleOn("rentals") ? (
+          <Link className="v2-row" href="/rentals">
+            <span className="v2-tile-icon" style={{ background: "#e4f6fe", color: "#0ea5e9" }}><Building2 size={19} /></span>
+            <span className="v2-row-main">
+              <strong>Loyers</strong>
+              <span>{data.tenants.length} locataire(s) · {eur.format(Math.max(rentExpected - rentReceived, 0))} restant</span>
+            </span>
+            <span className="v2-row-value">{eur.format(rentExpected)}</span>
+            <ChevronRight size={18} className="muted" />
+          </Link>
+        ) : null}
+
+        {isModuleOn("businesses") ? (
+          <Link className="v2-row" href="/business">
+            <span className="v2-tile-icon" style={{ background: "#fff2de", color: "#f59e0b" }}><BriefcaseBusiness size={19} /></span>
+            <span className="v2-row-main">
+              <strong>Business</strong>
+              <span>{data.businesses.length} activité(s) · marge {eur.format(businessRevenue - businessExpenses)}</span>
+            </span>
+            <span className="v2-row-value">{eur.format(businessRevenue)}</span>
+            <ChevronRight size={18} className="muted" />
+          </Link>
+        ) : null}
+
+        {isModuleOn("trips") ? (
+          <Link className="v2-row" href="/trips">
+            <span className="v2-tile-icon" style={{ background: "#e4f6fe", color: "#0ea5e9" }}><Plane size={19} /></span>
+            <span className="v2-row-main">
+              <strong>Voyages</strong>
+              <span>{nextTrip ? `${nextTrip.title} · ${fullDate(nextTrip.startDate)}` : "Aucun voyage à venir"}</span>
+            </span>
+            {nextTrip ? <span className="v2-row-value">{eur.format(nextTripTotal)}</span> : null}
+            <ChevronRight size={18} className="muted" />
+          </Link>
+        ) : null}
+
+        {isModuleOn("subscriptions") ? (
+          <Link className="v2-row" href="/subscriptions">
+            <span className="v2-tile-icon" style={{ background: "#e3f9ec", color: "var(--v2-positive)" }}><RefreshCcw size={19} /></span>
+            <span className="v2-row-main">
+              <strong>Abonnements</strong>
+              <span>{activeSubscriptions.length} actif(s)</span>
+            </span>
+            <span className="v2-row-value">{eur.format(subscriptionsTotal)} / mois</span>
+            <ChevronRight size={18} className="muted" />
+          </Link>
+        ) : null}
+      </section>
+    </main>
+  );
 }

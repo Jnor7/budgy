@@ -5,6 +5,14 @@ export type EntryType = "revenu" | "depense";
 export type BudgetStatus = "recu" | "peu" | "non";
 export type DubaiMovementType = "cash_in" | "cash_out" | "withdrawal";
 export type DubaiMovementStatus = "done" | "planned";
+export type ModuleKey = "budget" | "subscriptions" | "trips" | "rentals" | "businesses";
+export type BusinessTemplate = "simple" | "commerce" | "services" | "rental" | "import_export";
+export type TripRole = "owner" | "editor" | "viewer";
+export type TripMemberStatus = "pending" | "accepted" | "declined";
+export type InvitationStatus = TripMemberStatus | "expired" | "revoked";
+export type NotificationKind =
+  | "trip_invitation" | "trip_member_joined" | "trip_expense"
+  | "rent_due" | "business_task" | "system";
 
 export interface EntityMeta {
   id: UUID;
@@ -42,7 +50,7 @@ export interface DubaiCashMovement extends EntityMeta {
   type: DubaiMovementType; category: string; note: string; status: DubaiMovementStatus;
 }
 export interface Business extends EntityMeta {
-  name: string; type: string; icon: string; colorHex: string; note: string;
+  name: string; type: string; template: BusinessTemplate; icon: string; colorHex: string; note: string;
   isActive: boolean; createdAt: ISODate;
   moduleClients: boolean; moduleSuppliers: boolean; moduleStock: boolean;
   modulePurchases: boolean; moduleSales: boolean; moduleReservations: boolean;
@@ -79,6 +87,7 @@ export interface Subscription extends EntityMeta {
 export interface Trip extends EntityMeta {
   title: string; destinationSummary: string; startDate: ISODate; endDate: ISODate;
   peopleCount: number; targetBudget: number; notes: string; isCompleted: boolean; createdAt: ISODate;
+  coverImageUrl: string;
 }
 export interface Flight extends EntityMeta {
   tripId: UUID; airline: string; fromCode: string; toCode: string; departDate: ISODate;
@@ -93,14 +102,44 @@ export interface TripActivity extends EntityMeta {
   link: string; status: string; note: string;
 }
 export interface TripChecklistItem extends EntityMeta {
-  tripId: UUID; title: string; category: string; isDone: boolean;
+  tripId: UUID; title: string; category: string; isDone: boolean; assignedTo?: UUID;
 }
 export interface Attachment extends EntityMeta {
   fileName: string; mimeType: string; storagePath: string; sizeBytes: number;
   createdAt: ISODate; dubaiPartId?: UUID; businessId?: UUID;
 }
-export interface Profile { userId: UUID; username: string; createdAt: ISODate; updatedAt: ISODate; }
-export interface UserPreferences { userId: UUID; dubaiDisplayCurrency: Currency; }
+export interface Profile { userId: UUID; username: string; avatarUrl: string; modulesConfiguredAt?: ISODate; createdAt: ISODate; updatedAt: ISODate; }
+export interface UserPreferences {
+  userId: UUID; dubaiDisplayCurrency: Currency; mainCurrency: Currency;
+  businessCurrency: Currency; locale: string; compactAmounts: boolean;
+}
+
+export interface UserModule extends EntityMeta {
+  moduleKey: ModuleKey; enabled: boolean; createdAt: ISODate; updatedAt: ISODate;
+}
+export interface TripMember {
+  id: UUID; tripId: UUID; userId: UUID; role: TripRole; status: TripMemberStatus;
+  invitedBy?: UUID; joinedAt?: ISODate; createdAt: ISODate;
+}
+export interface TripInvitation {
+  id: UUID; tripId: UUID; inviterId: UUID; invitedUserId?: UUID; invitedEmail?: string;
+  role: Exclude<TripRole, "owner">; token: string; status: InvitationStatus;
+  expiresAt: ISODate; createdAt: ISODate;
+}
+export interface AppNotification {
+  id: UUID; userId: UUID; kind: NotificationKind; title: string; body: string;
+  payload: Record<string, unknown>; readAt?: ISODate; createdAt: ISODate;
+}
+export interface TripExpense extends EntityMeta {
+  tripId: UUID; paidBy: UUID; title: string; amount: number; currency: Currency;
+  date: ISODate; category: string; note: string; createdAt: ISODate;
+}
+export interface TripExpenseSplit extends EntityMeta {
+  expenseId: UUID; tripId: UUID; amount: number; isSettled: boolean;
+  settledAt?: ISODate; createdAt: ISODate;
+}
+/** Annuaire minimal des co-voyageurs (jamais de données financières privées). */
+export interface DirectoryProfile { userId: UUID; username: string; avatarUrl: string; }
 
 export interface AppData {
   tenants: Tenant[]; rentPayments: RentPayment[]; tenantDebts: TenantDebt[];
@@ -111,6 +150,8 @@ export interface AppData {
   businessTasks: BusinessTask[]; budgetEntries: BudgetEntry[]; subscriptions: Subscription[];
   trips: Trip[]; flights: Flight[]; accommodations: Accommodation[];
   tripActivities: TripActivity[]; tripChecklistItems: TripChecklistItem[]; attachments: Attachment[];
+  userModules: UserModule[]; tripMembers: TripMember[]; tripInvitations: TripInvitation[];
+  notifications: AppNotification[]; tripExpenses: TripExpense[]; tripExpenseSplits: TripExpenseSplit[];
 }
 
 export type AppDataKey = keyof AppData;

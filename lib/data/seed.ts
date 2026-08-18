@@ -13,6 +13,8 @@ export const emptyData: AppData = {
   businessItems: [], businessTransactions: [], businessBookings: [], businessTasks: [],
   budgetEntries: [], subscriptions: [], trips: [], flights: [], accommodations: [],
   tripActivities: [], tripChecklistItems: [], attachments: [],
+  userModules: [], tripMembers: [], tripInvitations: [],
+  notifications: [], tripExpenses: [], tripExpenseSplits: [],
 };
 
 export const demoData: AppData = {
@@ -48,11 +50,11 @@ export const demoData: AppData = {
     { id: "cash-2", userId: LOCAL_USER_ID, title: "Vente attendue", amount: 1200, currency: "AED", date: iso(1, 8), type: "cash_in", category: "Vente", note: "", status: "planned" },
   ],
   businesses: [
-    { id: "business-1", userId: LOCAL_USER_ID, name: "Studio Junior", type: "Services", icon: "briefcase", colorHex: "#B24DFF", note: "", isActive: true, createdAt: iso(-8, 1), moduleClients: true, moduleSuppliers: false, moduleStock: false, modulePurchases: false, moduleSales: true, moduleReservations: true, moduleServices: true, moduleTasks: true, modulePayments: true, moduleDocuments: true, moduleKPI: true },
+    { id: "business-1", userId: LOCAL_USER_ID, name: "Studio Junior", type: "Services", template: "services", icon: "briefcase", colorHex: "#B24DFF", note: "", isActive: true, createdAt: iso(-8, 1), moduleClients: true, moduleSuppliers: false, moduleStock: false, modulePurchases: false, moduleSales: true, moduleReservations: true, moduleServices: true, moduleTasks: true, modulePayments: true, moduleDocuments: true, moduleKPI: true },
   ],
   businessContacts: [], businessItems: [], businessTransactions: [], businessBookings: [], businessTasks: [],
   trips: [
-    { id: "trip-1", userId: LOCAL_USER_ID, title: "Istanbul", destinationSummary: "Turquie", startDate: iso(2, 14), endDate: iso(2, 19), peopleCount: 2, targetBudget: 1800, notes: "", isCompleted: false, createdAt: iso(-1, 1) },
+    { id: "trip-1", userId: LOCAL_USER_ID, title: "Istanbul", destinationSummary: "Turquie", startDate: iso(2, 14), endDate: iso(2, 19), peopleCount: 2, targetBudget: 1800, notes: "", isCompleted: false, createdAt: iso(-1, 1), coverImageUrl: "" },
   ],
   flights: [
     { id: "flight-1", userId: LOCAL_USER_ID, tripId: "trip-1", airline: "Transavia", fromCode: "CDG", toCode: "IST", departDate: iso(2, 14), arriveDate: iso(2, 14), price: 150, bookingLink: "", attachmentNote: "", status: "a_reserver" },
@@ -68,4 +70,9 @@ export const demoData: AppData = {
     { id: "check-2", userId: LOCAL_USER_ID, tripId: "trip-1", title: "eSIM", category: "Pratique", isDone: false },
   ],
   attachments: [],
+  userModules: (["budget","subscriptions","trips","rentals","businesses"] as const).map((moduleKey, index) => ({
+    id: `module-${index + 1}`, userId: LOCAL_USER_ID, moduleKey, enabled: true,
+    createdAt: iso(-8, 1), updatedAt: iso(-8, 1),
+  })),
+  tripMembers: [], tripInvitations: [], notifications: [], tripExpenses: [], tripExpenseSplits: [],
 };

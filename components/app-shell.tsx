@@ -1,5 +1,60 @@
 "use client";
-import { Home,BriefcaseBusiness,CircleDollarSign,Plane } from "lucide-react";
-import Link from "next/link"; import { usePathname } from "next/navigation";
-const tabs=[{href:"/",label:"Accueil",icon:Home},{href:"/business",label:"Business",icon:BriefcaseBusiness},{href:"/budget",label:"Budget",icon:CircleDollarSign},{href:"/trips",label:"Voyages",icon:Plane}];
-export function AppShell({children}:{children:React.ReactNode}) { const pathname=usePathname(); return <div className="app-frame">{children}<div className="tabbar-wrap"><nav className="tabbar" aria-label="Navigation principale">{tabs.map(({href,label,icon:Icon})=>{const active=href==="/"?pathname==="/":pathname.startsWith(href);return <Link className={`tab ${active?"active":""}`} href={href} key={href}><Icon size={23} strokeWidth={active?2.7:2.2}/><span>{label}</span><i className="tab-dot"/></Link>;})}</nav></div></div>; }
+
+import { Ellipsis, Home, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useMemo } from "react";
+import { useBudgyData } from "@/lib/data/data-provider";
+import { MODULE_DEFINITIONS } from "@/lib/modules/registry";
+
+interface Tab { href: string; label: string; icon: LucideIcon }
+
+const HOME: Tab = { href: "/", label: "Accueil", icon: Home };
+const MORE: Tab = { href: "/more", label: "Plus", icon: Ellipsis };
+
+/**
+ * La navigation ne montre jamais une destination inutile : elle est
+ * entièrement dérivée des modules activés (§6). Rien n'est codé en dur en
+ * dehors d'Accueil et Plus, présents pour tout le monde.
+ */
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const { modules, ready } = useBudgyData();
+
+  const tabs = useMemo<Tab[]>(() => {
+    const moduleTabs = MODULE_DEFINITIONS
+      .filter((definition) => definition.inNav && modules.includes(definition.key))
+      .sort((a, b) => a.navOrder - b.navOrder)
+      .map((definition) => ({
+        href: definition.href,
+        label: definition.label.split(" ")[0]!,
+        icon: definition.icon,
+      }));
+    return [HOME, ...moduleTabs, MORE];
+  }, [modules]);
+
+  return (
+    <div className="app-frame">
+      {children}
+      <div className="tabbar-wrap">
+        <nav className="tabbar" aria-label="Navigation principale" aria-busy={!ready}>
+          {tabs.map(({ href, label, icon: Icon }) => {
+            const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+            return (
+              <Link
+                className={`tab ${active ? "active" : ""}`}
+                href={href}
+                key={href}
+                aria-current={active ? "page" : undefined}
+              >
+                <Icon size={22} strokeWidth={active ? 2.6 : 2.1} />
+                <span>{label}</span>
+                <i className="tab-dot" />
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+    </div>
+  );
+}
