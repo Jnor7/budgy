@@ -8,7 +8,17 @@ export const supabasePublicKey = (
 
 // Backward-compatible alias used by the existing Supabase client helpers.
 export const supabaseAnonKey = supabasePublicKey;
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabasePublicKey);
+
+/**
+ * Une URL Supabase mal formée (schéma manquant, variable tronquée) ne fait
+ * habituellement pas échouer `createBrowserClient` de façon visible : le client
+ * se crée mais tous les appels réseau échouent en silence. On le détecte tôt
+ * pour donner un diagnostic clair plutôt qu'un blocage muet. Jamais de log de
+ * la clé elle-même, publique ou non.
+ */
+export const supabaseUrlLooksValid = Boolean(supabaseUrl && /^https?:\/\//i.test(supabaseUrl));
+
+export const isSupabaseConfigured = Boolean(supabaseUrlLooksValid && supabasePublicKey);
 
 const requestedMode = process.env.NEXT_PUBLIC_BUDGY_DATA_MODE?.trim().toLowerCase();
 export const budgyDataMode: BudgyDataMode =
@@ -16,3 +26,7 @@ export const budgyDataMode: BudgyDataMode =
 
 export const usesSupabase = budgyDataMode !== "local" && isSupabaseConfigured;
 export const hasInvalidSupabaseMode = budgyDataMode === "supabase" && !isSupabaseConfigured;
+
+if (process.env.NODE_ENV !== "production" && budgyDataMode !== "local" && supabaseUrl && !supabaseUrlLooksValid) {
+  console.warn("[budgy] NEXT_PUBLIC_SUPABASE_URL semble invalide (doit commencer par http:// ou https://).");
+}

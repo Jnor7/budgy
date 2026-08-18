@@ -42,6 +42,15 @@ interface DataContextValue {
   inviteToTrip: (tripId: string, options: { handle?: string; email?: string; role?: "editor" | "viewer" }) => Promise<Record<string, unknown>>;
   respondInvitation: (invitationId: string, accept: boolean) => Promise<void>;
   markNotificationRead: (id: string) => Promise<void>;
+  /** Alias explicite de `!localMode`, pour ne jamais confondre "configuré" et "prêt". */
+  supabaseConfigured: boolean;
+  /**
+   * Un `SupabaseRepository` authentifié existe réellement. Contrairement à `ready`,
+   * qui ne fait que constater la fin du premier essai (succès ou échec), ce booléen
+   * est la seule source de vérité fiable pour savoir si les opérations distantes
+   * (dont `importArchive`) peuvent être appelées sans échouer immédiatement.
+   */
+  repositoryReady: boolean;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -55,8 +64,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [syncError, setSyncError] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [directory, setDirectory] = useState<DirectoryProfile[]>([]);
+  /**
+   * Miroir réactif de `repositoryRef.current !== null`. Un `useRef` seul ne déclenche
+   * jamais de re-rendu : sans cet état, aucun composant ne peut savoir si le repository
+   * distant est réellement disponible, ce qui a permis au bug de l'écran Migration
+   * (import bloqué avec un message trompeur) — voir docs/BUGFIX_MIGRATION_SUPABASE.md.
+   */
+  const [repositoryReady, setRepositoryReady] = useState(false);
   const repositoryRef = useRef<SupabaseRepository | null>(null);
   const localMode = !usesSupabase;
+  const supabaseConfigured = !localMode;
 
   const reportError = useCallback((reason: unknown) => {
     setSyncStatus("error");
@@ -80,6 +97,37 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+
+    /** Crée le repository, charge les données et bascule `repositoryReady` de façon réactive. */
+    const attachRepository = async (client: ReturnType<typeof getSupabaseBrowserClient>, uid: string) => {
+      if (!client || cancelled) return;
+      const repository = new SupabaseRepository(client);
+      repositoryRef.current = repository;
+      setUserId(uid);
+      setSyncStatus("loading");
+      try {
+        setData(await repository.loadAll());
+        setProfile(await repository.loadProfile(uid).catch(() => null));
+        setDirectory(await repository.loadDirectory().catch(() => []));
+        setSyncError("");
+        setSyncStatus("idle");
+        if (!cancelled) setRepositoryReady(true);
+      } catch (reason) {
+        repositoryRef.current = null;
+        if (!cancelled) setRepositoryReady(false);
+        reportError(reason);
+      }
+    };
+
+    /** Session perdue (déconnexion) : on revient à un état "configuré mais non connecté". */
+    const detachRepository = () => {
+      repositoryRef.current = null;
+      setRepositoryReady(false);
+      setProfile(null);
+      setDirectory([]);
+    };
+
     const initialize = async () => {
       if (localMode) {
         const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -93,32 +141,42 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       const client = getSupabaseBrowserClient();
       if (!client) {
-        reportError(new Error("Supabase n’est pas configuré."));
+        reportError(new Error("Supabase n'est pas configuré."));
         setReady(true);
         return;
       }
+
+      // Rattrapage : si la vérification initiale (ci-dessous) est lente, échoue
+      // transitoirement, ou si le token est rafraîchi/la session apparaît plus tard,
+      // cet écouteur (re)construit le repository sans jamais laisser `repositoryReady`
+      // bloqué à `false` alors qu'une session valide existe.
+      const { data: subscription } = client.auth.onAuthStateChange((event, session) => {
+        if (cancelled) return;
+        if (session?.user && !repositoryRef.current) {
+          void attachRepository(client, session.user.id);
+        } else if (!session?.user && repositoryRef.current) {
+          detachRepository();
+        }
+        void event;
+      });
+      unsubscribe = () => subscription.subscription.unsubscribe();
+
       const { data: authData, error } = await client.auth.getUser();
       if (cancelled) return;
       if (error || !authData.user) {
+        // Pas d'erreur définitive : l'écouteur ci-dessus peut encore rattraper la session
+        // (ex. cookies pas tout à fait synchronisés au tout premier rendu).
         reportError(error ?? new Error("Session Supabase absente."));
         setReady(true);
         return;
       }
-      setUserId(authData.user.id);
-      repositoryRef.current = new SupabaseRepository(client);
-      try {
-        setData(await repositoryRef.current.loadAll());
-        setProfile(await repositoryRef.current.loadProfile(authData.user.id).catch(() => null));
-        setDirectory(await repositoryRef.current.loadDirectory().catch(() => []));
-        setSyncStatus("idle");
-      } catch (reason) {
-        reportError(reason);
-      } finally {
-        if (!cancelled) setReady(true);
-      }
+
+      await attachRepository(client, authData.user.id);
+      if (!cancelled) setReady(true);
     };
+
     void initialize();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; unsubscribe?.(); };
   }, [localMode, reportError]);
 
   useEffect(() => {
@@ -187,8 +245,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [reportError]);
 
   const importArchive = useCallback(async (incoming: AppData, checksum: string) => {
+    // Ordre de vérification volontaire : on distingue "pas configuré" (A) de
+    // "configuré mais pas encore prêt" (B) — voir lib/data/migration-state.ts.
+    if (localMode) {
+      throw new Error(
+        "L’import distant nécessite Supabase. Ce compte fonctionne en mode local : l’import restera sur cet appareil.",
+      );
+    }
     const repository = repositoryRef.current;
-    if (!repository) throw new Error("L’import distant nécessite le mode Supabase.");
+    if (!repository) {
+      throw new Error(
+        ready
+          ? "Import impossible : vous devez être connecté à Supabase. Reconnectez-vous puis réessayez."
+          : "Import impossible : connexion à Supabase en cours, réessayez dans un instant.",
+      );
+    }
     setSyncStatus("syncing");
     try {
       const result = await repository.importArchive(incoming, checksum);
@@ -198,7 +269,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       reportError(reason);
       throw reason;
     }
-  }, [reload, reportError]);
+  }, [localMode, ready, reload, reportError]);
 
   const modules = useMemo(() => enabledModuleKeys(data.userModules), [data.userModules]);
   const modulesConfigured = data.userModules.length > 0;
@@ -292,10 +363,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     inviteToTrip,
     respondInvitation,
     markNotificationRead,
+    supabaseConfigured,
+    repositoryReady,
   }), [
     create, data, directory, displayName, importArchive, inviteToTrip, localMode, markNotificationRead,
-    modules, modulesConfigured, profile, ready, reload, remove, respondInvitation, saveProfile,
-    setModules, syncError, syncStatus, update, userId,
+    modules, modulesConfigured, profile, ready, reload, remove, repositoryReady, respondInvitation, saveProfile,
+    setModules, supabaseConfigured, syncError, syncStatus, update, userId,
   ]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
