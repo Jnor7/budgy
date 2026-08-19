@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/data/data-provider", () => ({
   useBudgyData: () => ({
     data: mocks.data, ready: true, userId: "owner", create: mocks.create,
-    update: mocks.update, remove: mocks.remove, displayName: () => "Moi",
+    update: mocks.update, updateAndWait: mocks.update, remove: mocks.remove, reload: vi.fn(), displayName: () => "Moi", avatarUrl: () => "",
   }),
 }));
 
@@ -54,10 +54,10 @@ afterEach(() => {
 
 describe("Budgy V3.0.1 — stabilisation Travel", () => {
   it("normalise les quatre destinations de référence pour Unsplash", () => {
-    expect(destinationImageSearchQuery("Dubaï", "Émirats arabes unis")).toBe("Dubai UAE travel skyline");
-    expect(destinationImageSearchQuery("Tokyo", "Japon")).toBe("Tokyo Japan travel skyline");
-    expect(destinationImageSearchQuery("New York", "États-Unis")).toBe("New York USA travel skyline");
-    expect(destinationImageSearchQuery("Paris", "France")).toBe("Paris France travel skyline");
+    expect(destinationImageSearchQuery("Dubaï", "Émirats arabes unis")).toBe("Dubai UAE travel");
+    expect(destinationImageSearchQuery("Tokyo", "Japon")).toBe("Tokyo Japan travel");
+    expect(destinationImageSearchQuery("New York", "États-Unis")).toBe("New York USA travel");
+    expect(destinationImageSearchQuery("Paris", "France")).toBe("Paris France travel");
   });
 
   it("accepte une réponse photo valide et conserve le fallback en cas d'échec", async () => {

@@ -24,6 +24,7 @@ interface DataContextValue {
   /** `options.userId` permet d'attribuer une ligne à un autre participant (parts de dépense partagée). */
   create: <K extends AppDataKey>(key: K, payload: Omit<EntityFor<K>, "id" | "userId">, options?: { userId?: string }) => EntityFor<K>;
   update: <K extends AppDataKey>(key: K, id: string, patch: Partial<EntityFor<K>>) => void;
+  updateAndWait: <K extends AppDataKey>(key: K, id: string, patch: Partial<EntityFor<K>>) => Promise<void>;
   remove: <K extends AppDataKey>(key: K, id: string) => void;
   replaceAll: (data: AppData) => void;
   importArchive: (data: AppData, checksum: string) => Promise<RemoteImportResult>;
@@ -39,12 +40,14 @@ interface DataContextValue {
   profile: Profile | null;
   directory: DirectoryProfile[];
   displayName: (userId: string) => string;
+  avatarUrl: (userId: string) => string;
   saveProfile: (patch: Partial<Profile>) => Promise<void>;
   inviteToTrip: (tripId: string, options: { handle?: string; email?: string; role?: "editor" | "viewer" }) => Promise<Record<string, unknown>>;
   respondInvitation: (invitationId: string, accept: boolean) => Promise<void>;
   sendTravelFriendRequest: (handle: string) => Promise<Record<string, unknown>>;
   respondTravelFriendRequest: (requestId: string, accept: boolean) => Promise<void>;
   removeTravelFriend: (friendId: string) => Promise<void>;
+  searchTravelProfiles: (query: string) => Promise<DirectoryProfile[]>;
   searchAirportDirectory: (query: string) => Promise<Airport[]>;
   markNotificationRead: (id: string) => Promise<void>;
   /** Alias explicite de `!localMode`, pour ne jamais confondre "configuré" et "prêt". */
@@ -80,6 +83,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [repositoryReady, setRepositoryReady] = useState(false);
   const repositoryRef = useRef<SupabaseRepository | null>(null);
   const pendingInsertsRef = useRef(new Map<string, Promise<void>>());
+  const dataRef = useRef(data);
   const localMode = !usesSupabase;
   const supabaseConfigured = !localMode;
 
@@ -233,12 +237,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return entity;
   }, [reportError, userId]);
 
-  const update = useCallback(<K extends AppDataKey>(key: K, id: string, patch: Partial<EntityFor<K>>) => {
-    let previous: EntityFor<K> | undefined;
-    setData((current) => {
-      previous = current[key].find((entity) => entity.id === id);
-      return { ...current, [key]: current[key].map((entity) => entity.id === id ? { ...entity, ...patch } : entity) } as AppData;
-    });
+  const updateAndWait = useCallback(async <K extends AppDataKey>(key: K, id: string, patch: Partial<EntityFor<K>>) => {
+    const previous = dataRef.current[key].find((entity) => entity.id === id);
+    setData((current) => ({ ...current, [key]: current[key].map((entity) => entity.id === id ? { ...entity, ...patch } : entity) } as AppData));
     const repository = repositoryRef.current;
     if (repository) {
       setSyncStatus("syncing");
@@ -246,15 +247,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const persistence = pendingInsert
         ? pendingInsert.then(() => repository.update(key, id, patch as Partial<AppEntity>))
         : repository.update(key, id, patch as Partial<AppEntity>);
-      void persistence.then(() => {
+      try {
+        await persistence;
         setSyncError("");
         setSyncStatus("idle");
-      }).catch((reason: unknown) => {
+      } catch (reason) {
         if (previous) setData((current) => ({ ...current, [key]: current[key].map((item) => item.id === id ? previous : item) } as AppData));
         reportError(reason);
-      });
+        throw reason;
+      }
     }
   }, [reportError]);
+
+  const update = useCallback(<K extends AppDataKey>(key: K, id: string, patch: Partial<EntityFor<K>>) => {
+    void updateAndWait(key, id, patch).catch(() => undefined);
+  }, [updateAndWait]);
 
   const remove = useCallback(<K extends AppDataKey>(key: K, id: string) => {
     let removed: EntityFor<K> | undefined;
@@ -393,10 +400,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     await reload();
   }, [reload]);
 
+  const searchTravelProfiles = useCallback(async (query: string) => {
+    const normalized = query.trim();
+    if (normalized.length < 2) return [];
+    const repository = repositoryRef.current;
+    if (!repository) {
+      return directory.filter((candidate) => candidate.username.toLocaleLowerCase("fr-FR").startsWith(normalized.toLocaleLowerCase("fr-FR"))).slice(0, 6);
+    }
+    return repository.searchTravelProfiles(normalized, 6);
+  }, [directory]);
+
   const searchAirportDirectory = useCallback(async (query: string) => {
     if (query.trim().length < 2) return [];
     return repositoryRef.current?.searchAirports(query).catch(() => []) ?? [];
   }, []);
+
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
 
   const markNotificationRead = useCallback(async (id: string) => {
     const readAt = new Date().toISOString();
@@ -412,8 +433,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return directory.find((item) => item.userId === target)?.username ?? "Participant";
   }, [directory, profile?.username, userId]);
 
+  const avatarUrl = useCallback((target: string) => {
+    if (target === userId) return profile?.avatarUrl ?? "";
+    return directory.find((item) => item.userId === target)?.avatarUrl ?? "";
+  }, [directory, profile?.avatarUrl, userId]);
+
   const value = useMemo<DataContextValue>(() => ({
-    data, ready, localMode, userId, syncStatus, syncError, create, update, remove,
+    data, ready, localMode, userId, syncStatus, syncError, create, update, updateAndWait, remove,
     replaceAll: setData,
     importArchive,
     resetDemo: () => setData(cloneDemo()),
@@ -425,21 +451,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     profile,
     directory,
     displayName,
+    avatarUrl,
     saveProfile,
     inviteToTrip,
     respondInvitation,
     sendTravelFriendRequest,
     respondTravelFriendRequest,
     removeTravelFriend,
+    searchTravelProfiles,
     searchAirportDirectory,
     markNotificationRead,
     supabaseConfigured,
     repositoryReady,
   }), [
-    create, data, directory, displayName, importArchive, inviteToTrip, localMode, markNotificationRead,
+    avatarUrl, create, data, directory, displayName, importArchive, inviteToTrip, localMode, markNotificationRead,
     modules, modulesConfigured, profile, ready, reload, remove, repositoryReady, respondInvitation, saveProfile,
-    respondTravelFriendRequest, removeTravelFriend, searchAirportDirectory, sendTravelFriendRequest,
-    setModules, supabaseConfigured, syncError, syncStatus, update, userId,
+    respondTravelFriendRequest, removeTravelFriend, searchAirportDirectory, searchTravelProfiles, sendTravelFriendRequest,
+    setModules, supabaseConfigured, syncError, syncStatus, update, updateAndWait, userId,
   ]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

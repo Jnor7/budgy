@@ -29,8 +29,9 @@ export class SupabaseRepository {
   }
 
   async update(key: AppDataKey, id: string, patch: Partial<AppEntity>) {
-    const { error } = await this.client.from(entityTables[key]).update(toDatabaseRow(patch as AppEntity)).eq("id", id);
+    const { data, error } = await this.client.from(entityTables[key]).update(toDatabaseRow(patch as AppEntity)).eq("id", id).select("id").maybeSingle();
     if (error) throw error;
+    if (!data) throw new Error(`La mise à jour ${entityTables[key]}/${id} n'a affecté aucune ligne.`);
   }
 
   async remove(key: AppDataKey, id: string) {
@@ -121,6 +122,16 @@ export class SupabaseRepository {
     });
     if (error) throw error;
     return (data ?? {}) as Record<string, unknown>;
+  }
+
+  async searchTravelProfiles(query: string, limit = 6): Promise<DirectoryProfile[]> {
+    const { data, error } = await this.client.rpc("search_travel_profiles", { p_query: query, p_limit: Math.min(Math.max(limit, 1), 8) });
+    if (error) throw error;
+    return (data ?? []).slice(0, 8).map((row) => ({
+      userId: row.user_id,
+      username: row.username,
+      avatarUrl: row.avatar_url ?? "",
+    }));
   }
 
   async sendTravelFriendRequest(handle: string) {

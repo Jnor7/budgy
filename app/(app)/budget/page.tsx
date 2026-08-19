@@ -7,13 +7,13 @@ import { AmountField, AnimatedSegmented, DateField, FormSection } from "@/compon
 import { SwipeRow } from "@/components/ui/swipe-row";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { useBudgyData } from "@/lib/data/data-provider";
-import { budgetSummary, displayPotential, entriesForMonth } from "@/lib/domain/budget";
+import { budgetSummary, displayPotential, entriesForMonth, transactionCategory } from "@/lib/domain/budget";
 import { eur, fromDateInput, monthLabel, shortDate, toDateInput } from "@/lib/format";
 import type { BudgetEntry, EntryType } from "@/types/domain";
 
 type Draft = Pick<BudgetEntry, "title" | "amount" | "potentialAmount" | "type" | "category" | "bucket" | "scope" | "date" | "note" | "status">;
 const blankDraft = (date: Date, type: EntryType = "depense"): Draft => ({
-  title: "", amount: 0, potentialAmount: 0, type, category: "Autre",
+  title: "", amount: 0, potentialAmount: 0, type, category: "",
   bucket: type === "revenu" ? "Rentrée" : "Variable", scope: "Perso",
   date: date.toISOString(), note: "", status: "non",
 });
@@ -58,7 +58,8 @@ export default function BudgetPage() {
   const showEdit = (entry: BudgetEntry) => { setEditing(entry.id); setDraft({ ...entry }); setOpen(true); };
   const save = () => {
     if (!draft.title.trim() || draft.amount <= 0) return;
-    if (editing) update("budgetEntries", editing, draft); else create("budgetEntries", draft);
+    const payload = { ...draft, category: transactionCategory(draft.category) };
+    if (editing) update("budgetEntries", editing, payload); else create("budgetEntries", payload);
     showToast({ title: editing ? "Transaction modifiée" : "Transaction ajoutée", tone: "success" });
     setOpen(false);
   };
@@ -132,6 +133,6 @@ export default function BudgetPage() {
       submitLabel={editing ? "Enregistrer les modifications" : "Enregistrer la transaction"} disableSubmit={!draft.title.trim() || draft.amount <= 0}
       onClose={() => setOpen(false)} onSubmit={save}
       icon={draft.type === "revenu" ? Coins : WalletCards} tone={draft.type === "revenu" ? "green" : draft.bucket.toLowerCase().includes("charge") ? "orange" : "red"}
-    ><div className="form-grid"><FormSection title="Type"><AnimatedSegmented value={draft.type} options={[{ value: "depense", label: "↓ Dépense" }, { value: "revenu", label: "↑ Revenu" }]} onChange={(type) => setDraft({ ...draft, type, bucket: type === "revenu" ? "Rentrée" : "Variable" })} label="Type" /></FormSection><FormSection title="Détails"><FormRow><Field label="Montant"><AmountField size="modal" value={draft.amount} onChange={(amount) => setDraft({ ...draft, amount })} autoFocus /></Field><Field label="Catégorie"><input className="input" value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} /></Field></FormRow><div className="form-choice-chips" aria-label="Catégories rapides">{["Logement", "Alimentation", "Transport", "Voyage", "Abonnement"].map((category) => <button type="button" className={draft.category === category ? "active" : ""} aria-pressed={draft.category === category} onClick={() => setDraft({ ...draft, category })} key={category}>{category}</button>)}</div><Field label="Intitulé"><input className="input" autoCapitalize="sentences" value={draft.title} placeholder="Intitulé de la transaction" onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></Field><FormRow><Field label="Date"><DateField value={toDateInput(draft.date)} onChange={(value) => setDraft({ ...draft, date: fromDateInput(value) })} /></Field><Field label="Compte"><input className="input" value={draft.scope} onChange={(event) => setDraft({ ...draft, scope: event.target.value })} /></Field></FormRow><Field label="Groupe"><select className="select" value={draft.bucket} onChange={(event) => setDraft({ ...draft, bucket: event.target.value })}><option>Rentrée</option><option>Charge fixe</option><option>Variable</option><option>Voyage</option></select></Field><Field label="Note"><textarea className="textarea" value={draft.note} placeholder="Optionnel" onChange={(event) => setDraft({ ...draft, note: event.target.value })} /></Field></FormSection>{editing ? <button className="button button-danger" onClick={() => { const entry = data.budgetEntries.find((item) => item.id === editing); if (entry) scheduleDelete(entry); setOpen(false); }}>Supprimer la transaction</button> : null}</div></FormModal>
+    ><div className="form-grid"><FormSection title="Type"><AnimatedSegmented value={draft.type} options={[{ value: "depense", label: "↓ Dépense" }, { value: "revenu", label: "↑ Revenu" }]} onChange={(type) => setDraft({ ...draft, type, bucket: type === "revenu" ? "Rentrée" : "Variable" })} label="Type" /></FormSection><FormSection title="Détails"><FormRow><Field label="Montant"><AmountField size="modal" value={draft.amount} onChange={(amount) => setDraft({ ...draft, amount })} autoFocus /></Field><Field label="Catégorie"><input className="input" value={draft.category} placeholder="Autre" onChange={(event) => setDraft({ ...draft, category: event.target.value })} /></Field></FormRow><div className="form-choice-chips" aria-label="Catégories rapides">{["Logement", "Alimentation", "Transport", "Voyage", "Abonnement"].map((category) => <button type="button" className={draft.category === category ? "active" : ""} aria-pressed={draft.category === category} onClick={() => setDraft({ ...draft, category })} key={category}>{category}</button>)}</div><Field label="Intitulé"><input className="input" autoCapitalize="sentences" value={draft.title} placeholder="Intitulé de la transaction" onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></Field><FormRow><Field label="Date"><DateField value={toDateInput(draft.date)} onChange={(value) => setDraft({ ...draft, date: fromDateInput(value) })} /></Field><Field label="Compte"><input className="input" value={draft.scope} onChange={(event) => setDraft({ ...draft, scope: event.target.value })} /></Field></FormRow><Field label="Groupe"><select className="select" value={draft.bucket} onChange={(event) => setDraft({ ...draft, bucket: event.target.value })}><option>Rentrée</option><option>Charge fixe</option><option>Variable</option><option>Voyage</option></select></Field><Field label="Note"><textarea className="textarea" value={draft.note} placeholder="Optionnel" onChange={(event) => setDraft({ ...draft, note: event.target.value })} /></Field></FormSection>{editing ? <button className="button button-danger" onClick={() => { const entry = data.budgetEntries.find((item) => item.id === editing); if (entry) scheduleDelete(entry); setOpen(false); }}>Supprimer la transaction</button> : null}</div></FormModal>
   </main>;
 }

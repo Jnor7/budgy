@@ -2,6 +2,7 @@ import type { BudgetEntry } from "@/types/domain";
 
 export const isConfirmed = (entry: BudgetEntry) => entry.status === "recu";
 export const displayPotential = (entry: BudgetEntry) => entry.potentialAmount > 0 ? entry.potentialAmount : entry.amount;
+export const transactionCategory = (value: string) => value.trim() || "Autre";
 
 export function budgetSummary(entries: BudgetEntry[]) {
   const confirmed = entries.filter(isConfirmed);

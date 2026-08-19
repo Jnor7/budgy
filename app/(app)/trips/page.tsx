@@ -31,7 +31,7 @@ const blank = (): Draft => ({
 });
 
 export default function TripsPage() {
-  const { data, ready, userId, create, update, remove } = useBudgyData();
+  const { data, ready, userId, create, update, updateAndWait, remove, reload } = useBudgyData();
   const [tab, setTab] = useState<Tab>("upcoming");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Trip>();
@@ -69,21 +69,28 @@ export default function TripsPage() {
     setOpen(true);
   };
 
-  const resolveCover = async (trip: Trip, destination: string, country: string) => {
-    const image = await destinationImageProvider.findLandscape(destination, country);
-    if (image.provider === "fallback") return false;
-    update("trips", trip.id, { coverImageUrl: image.imageUrl, coverImageProvider: image.provider, coverImageId: image.photoId, coverPhotographer: image.photographer, coverPhotographerUrl: image.photographerUrl, coverAttribution: image.attribution });
-    return true;
+  const resolveCover = async (trip: Trip, destination: string, country: string, excludePhotoId = "") => {
+    const image = await destinationImageProvider.findLandscape(destination, country, { tripId: trip.id, excludePhotoId });
+    if (image.provider !== "unsplash" || !image.imageUrl || !image.photographer) return false;
+    try {
+      const patch = { coverImageUrl: image.imageUrl, coverImageProvider: image.provider, coverImageId: image.photoId, coverPhotographer: image.photographer, coverPhotographerUrl: image.photographerUrl, coverAttribution: image.attribution };
+      await updateAndWait("trips", trip.id, patch);
+      await reload();
+      setEditing((current) => current?.id === trip.id ? { ...current, ...patch } : current);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const refreshEditingCover = async () => {
     if (!editing || coverRefreshing) return;
     setCoverRefreshing(true);
     const destination = tripCreationDetails(draft.title.trim() || editing.title, draft.countryName, draft.countryCode);
-    const refreshed = await resolveCover({ ...editing, ...destination }, destination.title, destination.countryName);
+    const refreshed = await resolveCover({ ...editing, ...destination }, destination.title, destination.countryName, editing.coverImageId);
     showToast(refreshed
       ? { title: "Photo actualisée", detail: "La nouvelle couverture est enregistrée.", tone: "success" }
-      : { title: "Photo indisponible", detail: "Le fond premium reste affiché. Vous pourrez réessayer plus tard." });
+      : { title: "Impossible de récupérer une photo pour le moment.", tone: "error" });
     setCoverRefreshing(false);
   };
 

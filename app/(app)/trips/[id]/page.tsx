@@ -23,7 +23,7 @@ type Tab = "overview" | "itinerary" | "expenses" | "checklist" | "members";
 
 export default function TripDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { data, ready, userId, displayName, update } = useBudgyData();
+  const { data, ready, userId, displayName, avatarUrl, update } = useBudgyData();
   const [tab, setTab] = useState<Tab>("overview");
   const [itineraryRequest, setItineraryRequest] = useState<ItineraryKind>();
   const trip = data.trips.find((item) => item.id === id);
@@ -47,7 +47,7 @@ export default function TripDetailPage() {
   return <main className="page travel-detail">
     <TravelCover imageUrl={trip.coverImageUrl} destination={trip.title} countryCode={trip.countryCode} className="travel-detail-hero" eager>
       <header><Link href="/trips" aria-label="Retour aux voyages"><ArrowLeft size={20} /></Link>{canManage ? <button aria-label={trip.isCompleted ? "Rouvrir le voyage" : "Marquer comme terminé"} onClick={() => update("trips", trip.id, { isCompleted: !trip.isCompleted })}><Check size={19} /></button> : <span>{role ? roleLabel(role) : ""}</span>}</header>
-      <div className="travel-detail-title"><span>{tripCountdown(trip.startDate)}</span><h1>{trip.title} <em>{countryCodeToFlag(trip.countryCode)}</em></h1><p>{tripRangeLabel(trip.startDate, trip.endDate)} · {tripDayCount(trip.startDate, trip.endDate)} jours</p><div>{participants.slice(0, 4).map((participant) => <V2Avatar key={participant.userId} name={displayName(participant.userId)} />)}{participants.length > 4 ? <b>+{participants.length - 4}</b> : null}</div></div>
+      <div className="travel-detail-title"><span>{tripCountdown(trip.startDate)}</span><h1>{trip.title} <em>{countryCodeToFlag(trip.countryCode)}</em></h1><p>{tripRangeLabel(trip.startDate, trip.endDate)} · {tripDayCount(trip.startDate, trip.endDate)} jours</p><div>{participants.slice(0, 4).map((participant) => <V2Avatar key={participant.userId} name={displayName(participant.userId)} url={avatarUrl(participant.userId)} />)}{participants.length > 4 ? <b>+{participants.length - 4}</b> : null}</div></div>
     </TravelCover>
     {trip.coverAttribution ? <small className="travel-attribution detail">{trip.coverAttribution}</small> : null}
 
@@ -61,7 +61,7 @@ export default function TripDetailPage() {
 
     <nav className="travel-inner-tabs" aria-label="Sections du voyage">{(["overview", "itinerary", "expenses", "checklist", "members"] as const).map((value) => <button key={value} aria-current={tab === value ? "page" : undefined} onClick={() => { setItineraryRequest(undefined); setTab(value); }}>{value === "overview" ? "Aperçu" : value === "itinerary" ? "Itinéraire" : value === "expenses" ? "Dépenses" : value === "checklist" ? "Checklist" : "Membres"}</button>)}</nav>
 
-    {tab === "overview" ? <TripOverview targetBudget={trip.targetBudget} spent={spent} itinerary={itinerary} flights={flights} stays={stays} activities={activities} checks={checks} participants={participants.map((item) => item.userId)} displayName={displayName} onNavigate={setTab} onCreate={openItineraryForm} /> : null}
+    {tab === "overview" ? <TripOverview targetBudget={trip.targetBudget} spent={spent} itinerary={itinerary} flights={flights} stays={stays} activities={activities} checks={checks} participants={participants.map((item) => item.userId)} displayName={displayName} avatarUrl={avatarUrl} onNavigate={setTab} onCreate={openItineraryForm} /> : null}
     {tab === "itinerary" ? <TripItineraryPanel trip={trip} initialKind={itineraryRequest} onInitialKindConsumed={() => setItineraryRequest(undefined)} /> : null}
     {tab === "expenses" ? <TripExpensesPanel trip={trip} /> : null}
     {tab === "checklist" ? <TripChecklistPanel trip={trip} /> : null}
@@ -71,11 +71,11 @@ export default function TripDetailPage() {
 
 function Summary({ icon: Icon, label, value }: { icon: typeof Plane; label: string; value: string }) { return <article><span><Icon size={18} /></span><div><small>{label}</small><b>{value}</b></div></article>; }
 
-function TripOverview({ targetBudget, spent, itinerary, flights, stays, activities, checks, participants, displayName, onNavigate, onCreate }: {
+function TripOverview({ targetBudget, spent, itinerary, flights, stays, activities, checks, participants, displayName, avatarUrl, onNavigate, onCreate }: {
   targetBudget: number; spent: number;
   itinerary: ReturnType<typeof buildItinerary>; flights: Flight[];
   stays: Accommodation[]; activities: TripActivity[];
-  checks: TripChecklistItem[]; participants: string[]; displayName: (id: string) => string;
+  checks: TripChecklistItem[]; participants: string[]; displayName: (id: string) => string; avatarUrl: (id: string) => string;
   onNavigate: (tab: Tab) => void;
   onCreate: (kind: ItineraryKind) => void;
 }) {
@@ -92,6 +92,6 @@ function TripOverview({ targetBudget, spent, itinerary, flights, stays, activiti
     <button type="button" className="travel-overview-mini" disabled={Boolean(nextActivity)} onClick={() => onCreate("activity")}><span><MapPin size={19} /></span><div><small>Prochaine activité</small><strong>{nextActivity?.title ?? "À planifier"}</strong><p>{nextActivity ? `${nextActivity.city} · ${shortDate(nextActivity.activityDate)}` : "Ajoutez une expérience"}</p></div></button>
     <section className="travel-panel travel-overview-progress"><header><span>Budget</span><b>{eur.format(spent)} / {eur.format(targetBudget)}</b></header><div className="travel-progress"><i style={{ width: `${budgetProgress}%` }} /></div><button onClick={() => onNavigate("expenses")}><Receipt size={15} /> Gérer les dépenses</button></section>
     <section className="travel-panel travel-overview-progress"><header><span>Checklist</span><b>{complete} / {checks.length}</b></header><div className="travel-progress"><i style={{ width: `${checklistProgress}%` }} /></div><button onClick={() => onNavigate("checklist")}><ClipboardCheck size={15} /> Continuer la préparation</button></section>
-    <section className="travel-panel travel-overview-members"><header className="travel-section-head"><div><span className="travel-eyebrow">Avec vous</span><h2>{participants.length} voyageur{participants.length > 1 ? "s" : ""}</h2></div><button onClick={() => onNavigate("members")}>Gérer</button></header><div>{participants.map((id) => <span key={id}><V2Avatar name={displayName(id)} /><small>{displayName(id)}</small></span>)}</div></section>
+    <section className="travel-panel travel-overview-members"><header className="travel-section-head"><div><span className="travel-eyebrow">Avec vous</span><h2>{participants.length} voyageur{participants.length > 1 ? "s" : ""}</h2></div><button onClick={() => onNavigate("members")}>Gérer</button></header><div>{participants.map((id) => <span key={id}><V2Avatar name={displayName(id)} url={avatarUrl(id)} /><small>{displayName(id)}</small></span>)}</div></section>
   </div>;
 }

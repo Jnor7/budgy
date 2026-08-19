@@ -5,10 +5,21 @@ export interface DestinationImage {
   photographer: string;
   photographerUrl: string;
   attribution: string;
+  diagnostic?: {
+    query: string;
+    status: number;
+    errorType: string;
+    resultsCount: number;
+  };
+}
+
+export interface DestinationImageRequest {
+  tripId?: string;
+  excludePhotoId?: string;
 }
 
 export interface DestinationImageProvider {
-  findLandscape(destination: string, country: string): Promise<DestinationImage>;
+  findLandscape(destination: string, country: string, request?: DestinationImageRequest): Promise<DestinationImage>;
 }
 
 const searchAliases: Record<string, string> = {
@@ -32,7 +43,7 @@ const searchKey = (value: string) => value.normalize("NFD").replace(/[\u0300-\u0
 export const destinationImageSearchQuery = (destination: string, country: string) => {
   const city = searchAliases[searchKey(destination)] ?? destination.trim();
   const nation = searchAliases[searchKey(country)] ?? country.trim();
-  return `${city} ${nation} travel skyline`.replace(/\s+/g, " ").trim();
+  return `${city} ${nation} travel`.replace(/\s+/g, " ").trim();
 };
 
 export const fallbackDestinationImage = (): DestinationImage => ({
@@ -45,15 +56,25 @@ export const fallbackDestinationImage = (): DestinationImage => ({
 });
 
 export class ServerDestinationImageProvider implements DestinationImageProvider {
-  async findLandscape(destination: string, country: string) {
+  async findLandscape(destination: string, country: string, request: DestinationImageRequest = {}) {
+    const query = destinationImageSearchQuery(destination, country);
     try {
       const params = new URLSearchParams({ destination, country });
+      if (request.tripId) params.set("tripId", request.tripId);
+      if (request.excludePhotoId) params.set("excludePhotoId", request.excludePhotoId);
       const response = await fetch(`/api/travel/destination-image?${params}`, { cache: "no-store" });
-      if (!response.ok) return fallbackDestinationImage();
       const image = await response.json() as DestinationImage;
-      return image.imageUrl ? image : fallbackDestinationImage();
-    } catch {
-      return fallbackDestinationImage();
+      return image.imageUrl ? image : { ...fallbackDestinationImage(), diagnostic: image.diagnostic };
+    } catch (reason) {
+      return {
+        ...fallbackDestinationImage(),
+        diagnostic: {
+          query,
+          status: 0,
+          errorType: reason instanceof SyntaxError ? "invalid_route_payload" : "route_request_failed",
+          resultsCount: 0,
+        },
+      };
     }
   }
 }
