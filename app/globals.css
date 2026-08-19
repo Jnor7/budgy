@@ -558,3 +558,107 @@ button:active,a:active,.v2-module:active,.v2-tile:active { transform:scale(var(-
   .tab { font-size:8.3px; }.tab::before { inset:5px 2px 8px; }.rent-collection-premium footer { gap:6px;font-size:8.5px; }
   .tenant-card-tools .row-menu { margin-left:-2px; }.tenant-year-kpis strong { font-size:12.5px; }.rent-month-row { padding-inline:8px;gap:6px; }
 }
+
+/* ============================================================
+   BUDGY V2.5.4 — Premium UI System & Form Experience
+   Cohérence, finesse, formulaires unifiés. Le violet redevient un
+   accent : les grandes surfaces passent à une palette plus mature.
+   ============================================================ */
+:root {
+  /* Tons neutres pour les grands blocs (remplacent le violet plein) */
+  --v2-navy: #1c2033;
+  --v2-navy-deep: #12142a;
+  --v2-plum: #3d2c52;
+  --v2-indigo-deep: #423a86;
+  --v2-graphite: #2a2c38;
+
+  /* Palette contextuelle (accents, jamais des blocs pleins) */
+  --ctx-income: #4f9d6e;
+  --ctx-expense: #e2795f;
+  --ctx-rent: #7a93a8;
+  --ctx-rent-soft: #eef3f2;
+  --ctx-rent-line: #dee8e4;
+  --ctx-travel: #17b8ae;
+  --ctx-travel-sky: #2ba9e6;
+  --ctx-rose: #c2477e;
+  --ctx-rose-soft: #fdf0f6;
+
+  /* Champs de formulaire */
+  --field-h: 46px;
+  --field-radius: 14px;
+  --field-border: #e3e1e9;
+  --field-bg: #f8f8fb;
+  --field-focus: #9e7ef4;
+  --btn-h: 46px;
+}
+
+/* --- Champs uniformisés : hauteur, radius, focus commun -------------------- */
+.input,.select,.textarea { min-height:var(--field-h); border-color:var(--field-border); background:var(--field-bg); border-radius:var(--field-radius); padding:10px 13px; }
+.textarea { min-height:80px; }
+.button { min-height:var(--btn-h); padding:9px 16px; border-radius:14px; }
+.button-ghost { min-height:auto; padding:6px 8px; }
+.icon-button { border-radius:14px; }
+
+/* Select natif : chevron cohérent, plus d'apparence système. */
+.select {
+  appearance:none; -webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2374747f' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 13px center; background-size:15px; padding-right:36px;
+}
+
+/* Aucun spinner natif : tous les champs numériques restent sobres. */
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+input[type=number] { -moz-appearance:textfield; }
+
+/* --- Champ montant dédié (AmountField) ------------------------------------- */
+.amount-input-wrap {
+  display:flex; align-items:baseline; justify-content:center; gap:6px;
+  min-height:64px; border:1.5px solid var(--field-border); border-radius:18px;
+  background:#fff; padding:0 16px; transition:border-color .15s ease,box-shadow .15s ease;
+}
+.amount-input-wrap:focus-within { border-color:var(--field-focus); box-shadow:0 0 0 3px rgba(128,80,242,.12); }
+.amount-input-wrap input { flex:0 1 auto; width:100%; max-width:230px; border:0; background:transparent; padding:0; text-align:right; font-size:27px; font-weight:750; font-variant-numeric:tabular-nums; color:var(--text); outline:none; }
+.amount-input-wrap input::placeholder { color:#c7c4d0; font-weight:700; }
+.amount-input-wrap .amount-suffix { flex:0 0 auto; font-size:19px; font-weight:700; color:var(--muted); }
+.amount-input-wrap.compact { min-height:var(--field-h); border-radius:var(--field-radius); padding-inline:13px; }
+.amount-input-wrap.compact input { font-size:15.5px; font-weight:700; max-width:none; text-align:left; }
+.amount-input-wrap.compact .amount-suffix { font-size:13px; }
+
+/* --- Champ date dédié (DateField) ------------------------------------------ */
+.date-field { position:relative; display:flex; align-items:center; }
+.date-field-icon { position:absolute; left:13px; color:var(--v2-muted); pointer-events:none; }
+.date-field input[type=date] { width:100%; padding-left:38px; color-scheme:light; }
+.date-field input[type=date]::-webkit-calendar-picker-indicator { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
+.date-field input[type=date]::-webkit-datetime-edit { color:var(--text); }
+
+/* --- Bouton de réinitialisation discret (paiement) ------------------------- */
+.button-reset-inline {
+  justify-self:center; margin:2px auto 0; padding:8px 13px; border:0; border-radius:11px;
+  display:inline-flex; align-items:center; gap:6px; color:#b3444f; background:transparent;
+  font-size:12.5px; font-weight:650;
+}
+.button-reset-inline:active { background:#fdecee; }
+
+/* --- Accueil : gradient plus mature (bleu nuit → prune → indigo) ---------- */
+.v2-hero { background:linear-gradient(135deg,var(--v2-navy) 0%,var(--v2-plum) 55%,var(--v2-indigo-deep) 100%); }
+
+/* --- Budget : gradient graphite → bleu nuit -------------------------------- */
+.budget-balance-card { background:linear-gradient(140deg,var(--v2-graphite),var(--v2-navy-deep)); }
+
+/* --- Loyers : blanc / bleu-gris / sauge au lieu du violet ------------------ */
+.collection-card { background:linear-gradient(135deg,var(--ctx-rent-soft),#fff); border-color:var(--ctx-rent-line); }
+.collection-track i { background:linear-gradient(90deg,var(--ctx-rent),#8fbfa4); }
+
+/* --- Voyages : ciel / turquoise au lieu du violet -------------------------- */
+.v2-trip-cover { background:linear-gradient(135deg,var(--ctx-travel-sky) 0%,var(--ctx-travel) 100%); }
+.v2-trip-stats b { color:#0f95a8; }
+
+/* --- Abonnements : rose doux / lilas --------------------------------------- */
+.icon-rose { color:var(--ctx-rose); background:var(--ctx-rose-soft); }
+.quick-rose>span { color:var(--ctx-rose); background:var(--ctx-rose-soft); }
+
+/* --- FormSheet : sections plus fines ---------------------------------------- */
+.form-section { padding:13px 14px; }
+.form-section+.form-section { margin-top:0; }
+
+@media (prefers-reduced-motion:reduce) { .amount-input-wrap,.date-field input { transition:none!important; } }

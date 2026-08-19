@@ -7,6 +7,7 @@ import { RowMenu } from "@/components/ui/menu";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { Field, Sheet } from "@/components/ui/modal";
 import { V2Avatar, V2Empty, V2Skeleton } from "@/components/ui/v2";
+import { AmountField, DateField, FormSection } from "@/components/ui/premium";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { canManageTripMembers, tripParticipants, visibleTrips } from "@/lib/domain/permissions";
 import { fromDateInput, toDateInput } from "@/lib/format";
@@ -182,16 +183,22 @@ export default function TripsPage() {
         onClose={() => setOpen(false)} onSubmit={save}
       >
         <div className="form-grid">
-          <Field label="Titre"><input className="input" value={draft.title} placeholder="Dubaï, New York…" onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></Field>
-          <Field label="Destination"><input className="input" value={draft.destinationSummary} onChange={(event) => setDraft({ ...draft, destinationSummary: event.target.value })} /></Field>
-          <div className="grid-2">
-            <Field label="Départ"><input className="input" type="date" value={toDateInput(draft.startDate)} onChange={(event) => setDraft({ ...draft, startDate: fromDateInput(event.target.value) })} /></Field>
-            <Field label="Retour"><input className="input" type="date" value={toDateInput(draft.endDate)} onChange={(event) => setDraft({ ...draft, endDate: fromDateInput(event.target.value) })} /></Field>
-          </div>
-          <div className="grid-2">
-            <Field label="Voyageurs"><input className="input" type="number" min="1" value={draft.peopleCount} onChange={(event) => setDraft({ ...draft, peopleCount: Number(event.target.value) })} /></Field>
-            <Field label="Budget cible"><input className="input" type="number" inputMode="decimal" value={draft.targetBudget || ""} onChange={(event) => setDraft({ ...draft, targetBudget: Number(event.target.value) })} /></Field>
-          </div>
+          <FormSection title="Destination">
+            <Field label="Titre"><input className="input" value={draft.title} placeholder="Dubaï, New York…" onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></Field>
+            <Field label="Destination"><input className="input" value={draft.destinationSummary} onChange={(event) => setDraft({ ...draft, destinationSummary: event.target.value })} /></Field>
+          </FormSection>
+          <FormSection title="Dates">
+            <div className="grid-2">
+              <Field label="Départ"><DateField value={toDateInput(draft.startDate)} onChange={(value) => setDraft({ ...draft, startDate: fromDateInput(value) })} /></Field>
+              <Field label="Retour"><DateField value={toDateInput(draft.endDate)} onChange={(value) => setDraft({ ...draft, endDate: fromDateInput(value) })} /></Field>
+            </div>
+          </FormSection>
+          <FormSection title="Voyageurs et budget">
+            <div className="grid-2">
+              <Field label="Voyageurs"><input className="input" type="number" min="1" value={draft.peopleCount} onChange={(event) => setDraft({ ...draft, peopleCount: Number(event.target.value) })} /></Field>
+              <Field label="Budget cible"><AmountField size="compact" value={draft.targetBudget} onChange={(targetBudget) => setDraft({ ...draft, targetBudget })} /></Field>
+            </div>
+          </FormSection>
           <Field label="Notes"><textarea className="textarea" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} /></Field>
           {editing ? (
             <button className="card-flat spread" onClick={() => setDraft({ ...draft, isCompleted: !draft.isCompleted })}>

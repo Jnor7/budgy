@@ -7,7 +7,7 @@ export interface ModuleDefinition {
   tagline: string;
   description: string;
   icon: LucideIcon;
-  tone: "purple" | "green" | "cyan" | "orange";
+  tone: "purple" | "green" | "cyan" | "orange" | "rose";
   /** Route principale du module dans la barre de navigation. */
   href: string;
   /** Ordre d'apparition dans la tab bar (plus petit = plus à gauche). */
@@ -34,7 +34,7 @@ export const MODULE_DEFINITIONS: readonly ModuleDefinition[] = [
     tagline: "Suivez vos paiements récurrents.",
     description: "Prélèvements mensuels, prochaine échéance et abonnements en pause.",
     icon: RefreshCcw,
-    tone: "orange",
+    tone: "rose",
     href: "/subscriptions",
     navOrder: 40,
     inNav: false,

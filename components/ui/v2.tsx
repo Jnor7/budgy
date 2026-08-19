@@ -21,11 +21,11 @@ export const categoryColor = (label: string, index = 0) =>
   CATEGORY_COLORS[label.trim().toLocaleLowerCase("fr-FR")] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length]!;
 
 const TONE_BACKGROUNDS: Record<string, string> = {
-  purple: "#f2ebff", green: "#e3f9ec", cyan: "#e4f6fe", orange: "#fff2de", red: "#ffeced",
+  purple: "#f2ebff", green: "#e3f9ec", cyan: "#e4f6fe", orange: "#fff2de", red: "#ffeced", rose: "#fdf0f6",
 };
 const TONE_COLORS: Record<string, string> = {
   purple: "var(--v2-violet)", green: "var(--v2-positive)", cyan: "#0ea5e9",
-  orange: "#f59e0b", red: "var(--v2-negative)",
+  orange: "#f59e0b", red: "var(--v2-negative)", rose: "#c2477e",
 };
 export type Tone = keyof typeof TONE_COLORS;
 

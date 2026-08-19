@@ -3,6 +3,7 @@
 import { ArrowLeftRight, Plus, Receipt, Trash2, UserPlus, Users, Wallet } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Field, Sheet } from "@/components/ui/modal";
+import { AmountField } from "@/components/ui/premium";
 import { V2Avatar, V2Icon } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { canEditTrip, canManageTripMembers, roleLabel, tripParticipants } from "@/lib/domain/permissions";
@@ -271,7 +272,7 @@ export function TripCollaboration({ trip }: { trip: Trip }) {
             <input className="input" value={title} placeholder="Hôtel, restaurant, taxi…" onChange={(event) => setTitle(event.target.value)} />
           </Field>
           <Field label="Montant total">
-            <input className="input" type="number" inputMode="decimal" value={amount || ""} onChange={(event) => setAmount(Number(event.target.value))} />
+            <AmountField value={amount} onChange={setAmount} autoFocus />
           </Field>
           <Field label="Payé par">
             <select className="select" value={payer} onChange={(event) => setPayer(event.target.value)}>
