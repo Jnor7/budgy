@@ -41,6 +41,9 @@ export function AmountField({ value, onChange, suffix = "€", size = "hero", pl
 }) {
   const [raw, setRaw] = useState(() => formatAmountRaw(value));
   const focused = useRef(false);
+  // Conservé dans l'API pour compatibilité, mais volontairement neutralisé :
+  // un popup ne doit jamais ouvrir le clavier avant une action de l'utilisateur.
+  void autoFocus;
 
   useEffect(() => {
     if (focused.current) return;
@@ -50,7 +53,7 @@ export function AmountField({ value, onChange, suffix = "€", size = "hero", pl
   return (
     <div className={`amount-input-wrap ${size}`}>
       <input
-        id={id} type="text" inputMode="decimal" autoComplete="off" autoFocus={autoFocus}
+        id={id} type="text" inputMode="decimal" autoComplete="off"
         placeholder={placeholder} value={raw}
         onFocus={() => { focused.current = true; }}
         onBlur={() => { focused.current = false; setRaw(formatAmountRaw(value)); }}

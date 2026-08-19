@@ -274,7 +274,7 @@ export function TripCollaboration({ trip }: { trip: Trip }) {
             <input className="input" value={title} placeholder="Hôtel, restaurant, taxi…" onChange={(event) => setTitle(event.target.value)} />
           </Field>
           <Field label="Montant total">
-            <AmountField size="modal" value={amount} onChange={setAmount} autoFocus />
+            <AmountField size="modal" value={amount} onChange={setAmount} />
           </Field>
           <Field label="Payé par">
             <select className="select" value={payer} onChange={(event) => setPayer(event.target.value)}>

@@ -8,7 +8,7 @@ import { RowMenu } from "@/components/ui/menu";
 import { Field,FormModal,FormRow,Sheet } from "@/components/ui/modal";
 import { AmountField,AnimatedSegmented,FormSection } from "@/components/ui/premium";
 import { useBudgyData } from "@/lib/data/data-provider";
-import { convertCurrency,dubaiCashSummary,partMetrics } from "@/lib/domain/dubai";
+import { convertCurrency,dubaiCashSummary,partMetrics,safeCurrency } from "@/lib/domain/dubai";
 import { money,shortDate } from "@/lib/format";
 import type { Currency,DubaiCashMovement,DubaiPart } from "@/types/domain";
 
@@ -18,7 +18,7 @@ const blankPart:PartDraft={name:"",category:"Pièces auto",quantityBought:0,quan
 
 export default function DubaiPage(){
  const {data,create,update,remove}=useBudgyData();
- const [currency,setCurrency]=useState<Currency>(()=>(typeof window!=="undefined"?(localStorage.getItem("budgy.dubai.currency") as Currency):"AED")||"AED");
+ const [currency,setCurrency]=useState<Currency>("AED");
  const [partOpen,setPartOpen]=useState(false),[editingPart,setEditingPart]=useState<string>(),[documentPart,setDocumentPart]=useState<string>();
  const [partDraft,setPartDraft]=useState<PartDraft>(blankPart),[action,setAction]=useState<Action>(),[selectedPart,setSelectedPart]=useState("");
  const [title,setTitle]=useState(""),[amount,setAmount]=useState(0),[quantity,setQuantity]=useState(1),[actionCurrency,setActionCurrency]=useState<Currency>("AED");
@@ -30,13 +30,13 @@ export default function DubaiPage(){
  const bought=allMetrics.reduce((sum,item)=>sum+item.totalBoughtAED,0),potential=allMetrics.reduce((sum,item)=>sum+item.totalPotentialRevenueAED,0);
  const remaining=data.dubaiParts.reduce((sum,part,index)=>sum+(allMetrics[index]?.realRemainingQuantity??part.quantityBought),0),sold=data.dubaiParts.reduce((sum,part,index)=>sum+(allMetrics[index]?.realQuantitySoldFromSales??part.quantitySold),0),totalQty=data.dubaiParts.reduce((sum,item)=>sum+item.quantityBought,0);
  const display=(aed:number)=>money(convertCurrency(aed,"AED",currency),currency);
- const chooseCurrency=(value:Currency)=>{setCurrency(value);localStorage.setItem("budgy.dubai.currency",value);};
+ const chooseCurrency=(value:Currency)=>{setCurrency(value);try{localStorage.setItem("budgy.dubai.currency",value);}catch{/* Le mode privé peut interdire le stockage sans bloquer la page. */}};
  const editPart=(part:DubaiPart)=>{setEditingPart(part.id);setPartDraft({name:part.name,category:part.category,quantityBought:part.quantityBought,quantitySold:part.quantitySold,purchasePriceAED:part.purchasePriceAED,targetSalePriceAED:part.targetSalePriceAED,note:part.note,cashWithdrawnAED:part.cashWithdrawnAED});setPartOpen(true);};
  const savePart=()=>{if(!partDraft.name.trim()||partDraft.quantityBought<0)return;if(editingPart)update("dubaiParts",editingPart,partDraft);else create("dubaiParts",{...partDraft,createdAt:new Date().toISOString()});showToast({title:editingPart?"Référence modifiée":"Référence ajoutée",tone:"success"});setPartOpen(false);};
  const openAction=(kind:Action,partId="")=>{setAction(kind);setSelectedPart(partId);setTitle("");setAmount(0);setQuantity(1);setActionCurrency("AED");setMovementType("cash_out");setPlanned(false);};
  const saveAction=()=>{if(!action||amount<=0)return;if(action==="sale"&&selectedPart)create("dubaiSales",{partId:selectedPart,quantity,unitSalePriceAED:amount,currency:actionCurrency,date:new Date().toISOString(),customerName:title||"Client",note:""});else if(action==="expense")create("dubaiExpenses",{partId:selectedPart||undefined,title:title||"Charge",amountAED:amount,currency:actionCurrency,date:new Date().toISOString(),category:"Autre",note:""});else if(action==="movement")create("dubaiCashMovements",{title:title||"Mouvement",amount,currency:actionCurrency,date:new Date().toISOString(),type:movementType,category:movementType==="withdrawal"?"Retrait":"Cash",note:"",status:planned?"planned":"done"});else return;showToast({title:action==="sale"?"Vente ajoutée":action==="expense"?"Charge ajoutée":"Mouvement enregistré",tone:"success"});setAction(undefined);};
 
- useEffect(()=>{if(actionHandled.current)return;const timer=window.setTimeout(()=>{actionHandled.current=true;const requested=new URLSearchParams(window.location.search).get("action");if(requested==="sale"||requested==="expense"||requested==="movement")openAction(requested);},0);return()=>window.clearTimeout(timer);},[]);
+ useEffect(()=>{if(actionHandled.current)return;const timer=window.setTimeout(()=>{actionHandled.current=true;try{setCurrency(safeCurrency(localStorage.getItem("budgy.dubai.currency")));}catch{setCurrency("AED");}const requested=new URLSearchParams(window.location.search).get("action");if(requested==="sale"||requested==="expense"||requested==="movement")openAction(requested);},0);return()=>window.clearTimeout(timer);},[]);
 
  return <main className="page dubai-page"><header className="business-subnav"><Link href="/business"><ArrowLeft size={17}/> Business</Link><strong>Dubaï</strong><button className="compact-add" onClick={()=>{setEditingPart(undefined);setPartDraft(blankPart);setPartOpen(true);}}><Plus size={18}/> Référence</button></header>
   <AnimatedSegmented value={currency} options={(["AED","EUR","FCFA","USD"] as Currency[]).map((value)=>({value,label:value}))} onChange={chooseCurrency} label="Devise d’affichage"/>

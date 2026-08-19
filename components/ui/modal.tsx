@@ -1,5 +1,5 @@
 "use client";
-import { X, type LucideIcon } from "lucide-react";
+import { TriangleAlert, X, type LucideIcon } from "lucide-react";
 import { cloneElement, isValidElement, useCallback, useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { toneStyle, type Tone } from "@/components/ui/v2";
@@ -83,8 +83,23 @@ export function FormModal({
   const titleId = useId();
   const closeTimer = useRef<number | undefined>(undefined);
   const closingRef = useRef(false);
+  const dirtyRef = useRef(false);
+  const confirmCloseRef = useRef(false);
   const previousFocus = useRef<HTMLElement | null>(null);
   const [closing, setClosing] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
+
+  const setCloseConfirmation = useCallback((value: boolean) => {
+    confirmCloseRef.current = value;
+    setConfirmClose(value);
+  }, []);
+
+  const markDirty = useCallback(() => {
+    if (dirtyRef.current) return;
+    dirtyRef.current = true;
+    setDirty(true);
+  }, []);
 
   const closeWith = useCallback((after?: () => void) => {
     if (closingRef.current) return;
@@ -101,7 +116,12 @@ export function FormModal({
     if (!open) return;
     const previous = document.body.style.overflow;
     previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const handleKey = (event: KeyboardEvent) => { if (event.key === "Escape") closeWith(); };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (confirmCloseRef.current) setCloseConfirmation(false);
+      else if (dirtyRef.current) setCloseConfirmation(true);
+      else closeWith();
+    };
     document.body.style.overflow = "hidden";
     document.addEventListener("keydown", handleKey);
     return () => {
@@ -111,19 +131,49 @@ export function FormModal({
       closingRef.current = false;
       previousFocus.current?.focus();
     };
-  }, [closeWith, open]);
+  }, [closeWith, open, setCloseConfirmation]);
+
+  useEffect(() => {
+    if (open) return;
+    const resetTimer = window.setTimeout(() => {
+      dirtyRef.current = false;
+      confirmCloseRef.current = false;
+      setDirty(false);
+      setConfirmClose(false);
+    }, 0);
+    return () => window.clearTimeout(resetTimer);
+  }, [open]);
+
+  const requestClose = () => {
+    if (dirtyRef.current) setCloseConfirmation(true);
+    else closeWith();
+  };
+
+  const submit = () => {
+    dirtyRef.current = false;
+    setDirty(false);
+    closeWith(onSubmit);
+  };
+
+  const discardAndClose = () => {
+    dirtyRef.current = false;
+    setDirty(false);
+    setCloseConfirmation(false);
+    closeWith();
+  };
 
   if (!open) return null;
   return createPortal(
-    <div className={`form-modal-backdrop ${closing ? "is-closing" : ""}`} role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) closeWith(); }}>
-      <section className={`form-modal form-modal-${tone} ${closing ? "is-closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-        <header className="form-modal-header"><h2 id={titleId}>{title}</h2><button type="button" aria-label="Fermer" onClick={() => closeWith()}><X size={18} /></button></header>
-        <div className="form-modal-scroll">
+    <div className={`form-modal-backdrop ${closing ? "is-closing" : ""}`} role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) requestClose(); }}>
+      <section className={`form-modal form-modal-${tone} ${closing ? "is-closing" : ""}`} data-dirty={dirty || undefined} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+        <header className="form-modal-header"><h2 id={titleId}>{title}</h2><button type="button" aria-label="Fermer" onClick={requestClose}><X size={18} /></button></header>
+        <div className="form-modal-scroll" onInputCapture={markDirty} onChangeCapture={markDirty} onClickCapture={(event) => { const button = (event.target as HTMLElement).closest("button"); if (button && !button.hasAttribute("data-form-dirty-ignore")) markDirty(); }}>
           <div className="form-modal-icon" style={toneStyle(tone)}><Icon size={25} strokeWidth={2.15} /></div>
           {children}
         </div>
-        <footer className="form-modal-footer"><button className="button button-primary form-modal-cta" disabled={disableSubmit} onClick={() => closeWith(onSubmit)}>{submitLabel}</button></footer>
+        <footer className="form-modal-footer"><button className="button button-primary form-modal-cta" disabled={disableSubmit} onClick={submit}>{submitLabel}</button></footer>
       </section>
+      {confirmClose ? <div className="form-leave-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setCloseConfirmation(false); }}><section className="form-leave-dialog" role="alertdialog" aria-modal="true" aria-labelledby={`${titleId}-leave`}><span><TriangleAlert size={22} /></span><h3 id={`${titleId}-leave`}>Quitter ce formulaire&nbsp;?</h3><p>Les modifications non enregistrées seront perdues.</p><div><button type="button" className="button button-soft" onClick={() => setCloseConfirmation(false)}>Continuer la saisie</button><button type="button" className="button button-danger" onClick={discardAndClose}>Quitter sans enregistrer</button></div></section></div> : null}
     </div>,
     document.body,
   );

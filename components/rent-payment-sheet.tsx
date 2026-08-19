@@ -58,7 +58,7 @@ function OpenRentPaymentSheet({ tenant, year, month, onClose }: { tenant: Tenant
     <FormModal open title="Enregistrer un paiement" submitLabel="Enregistrer le paiement" disableSubmit={amount < 0} onClose={onClose} onSubmit={save} icon={Banknote} tone="cyan">
       <div className="form-grid">
         <div className="payment-sheet-summary"><span><strong>{monthLabel(new Date(year, month - 1, 1))}</strong><small>{tenant.name}</small></span><span><small>Total dû</small><strong>{eur.format(due)}</strong></span></div>
-        <Field label="Montant du versement"><AmountField size="modal" value={amount} onChange={setAmount} autoFocus /></Field>
+        <Field label="Montant du versement"><AmountField size="modal" value={amount} onChange={setAmount} /></Field>
         <div className="payment-fractions" aria-label="Fraction du paiement">
           {FRACTIONS.map((fraction) => {
             const value = Math.round(due * fraction.value * 100) / 100;

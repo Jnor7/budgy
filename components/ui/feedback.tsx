@@ -40,11 +40,11 @@ export function useToast() {
   return value;
 }
 
-export function ConfirmDialog({ open, title, detail, confirmLabel = "Supprimer", onCancel, onConfirm }: {
-  open: boolean; title: string; detail: string; confirmLabel?: string; onCancel: () => void; onConfirm: () => void;
+export function ConfirmDialog({ open, title, detail, confirmLabel = "Supprimer", confirmTone = "danger", onCancel, onConfirm }: {
+  open: boolean; title: string; detail: string; confirmLabel?: string; confirmTone?: "danger" | "primary"; onCancel: () => void; onConfirm: () => void;
 }) {
   if (!open) return null;
-  return <div className="confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}><section className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title"><div className="confirm-symbol">!</div><h2 id="confirm-title">{title}</h2><p>{detail}</p><div className="confirm-actions"><button className="button button-soft" onClick={onCancel}>Annuler</button><button className="button button-danger" onClick={onConfirm}>{confirmLabel}</button></div></section></div>;
+  return <div className="confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}><section className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title"><div className={`confirm-symbol confirm-symbol-${confirmTone}`}>!</div><h2 id="confirm-title">{title}</h2><p>{detail}</p><div className="confirm-actions"><button className="button button-soft" onClick={onCancel}>Annuler</button><button className={`button button-${confirmTone}`} onClick={onConfirm}>{confirmLabel}</button></div></section></div>;
 }
 
 export function SuccessState({ title, detail, action }: { title: string; detail: string; action?: ReactNode }) {
