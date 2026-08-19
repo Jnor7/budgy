@@ -4,13 +4,12 @@ import { Check, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  Fixes: "var(--v2-cat-fixes)",
-  Variables: "var(--v2-cat-variables)",
-  Loyers: "var(--v2-cat-loyers)",
-  Abonnements: "var(--v2-cat-abonnements)",
-  Business: "var(--v2-cat-business)",
-  Voyages: "var(--v2-cat-voyages)",
-  Autres: "var(--v2-cat-autres)",
+  revenus: "var(--v2-positive)", fixes: "var(--v2-cat-fixes)", fixe: "var(--v2-cat-fixes)",
+  abonnements: "var(--v2-cat-abonnements)", abonnement: "var(--v2-cat-abonnements)",
+  variables: "var(--v2-cat-variables)", variable: "var(--v2-cat-variables)",
+  loyers: "var(--v2-cat-loyers)", loyer: "var(--v2-cat-loyers)",
+  business: "var(--v2-cat-business)", voyages: "var(--v2-cat-voyages)", voyage: "var(--v2-cat-voyages)",
+  autres: "var(--v2-cat-autres)", autre: "var(--v2-cat-autres)",
 };
 
 const FALLBACK_COLORS = [
@@ -19,7 +18,7 @@ const FALLBACK_COLORS = [
 ];
 
 export const categoryColor = (label: string, index = 0) =>
-  CATEGORY_COLORS[label] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length]!;
+  CATEGORY_COLORS[label.trim().toLocaleLowerCase("fr-FR")] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length]!;
 
 const TONE_BACKGROUNDS: Record<string, string> = {
   purple: "#f2ebff", green: "#e3f9ec", cyan: "#e4f6fe", orange: "#fff2de", red: "#ffeced",

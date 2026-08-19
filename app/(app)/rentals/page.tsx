@@ -3,7 +3,7 @@
 import {
   Banknote, Building2, ChevronLeft, ChevronRight, CircleAlert, Plus, RotateCcw,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RowMenu } from "@/components/ui/menu";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { Field, Sheet } from "@/components/ui/modal";
@@ -33,6 +33,8 @@ export default function RentalsPage() {
   const [debtLabel, setDebtLabel] = useState("");
   const [debtAmount, setDebtAmount] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<Tenant>();
+  const [quickPayment, setQuickPayment] = useState(false);
+  const actionHandled = useRef(false);
   const { showToast } = useToast();
 
   const month = cursor.getMonth() + 1;
@@ -87,6 +89,7 @@ export default function RentalsPage() {
       });
     }
     setPaymentTenant(undefined);
+    showToast({ title: "Paiement enregistré", detail: `${paymentTenant.name} · ${eur.format(amount)}`, tone: "success" });
   };
 
   const resetPayment = () => {
@@ -105,7 +108,14 @@ export default function RentalsPage() {
       month, year, isPaid: false, createdAt: new Date().toISOString(),
     });
     setDebtTenant(undefined);
+    showToast({ title: "Dette ajoutée", detail: debtTenant.name, tone: "success" });
   };
+
+  useEffect(() => {
+    if (!ready || actionHandled.current) return;
+    const timer = window.setTimeout(() => { actionHandled.current = true; if (new URLSearchParams(window.location.search).get("action") === "payment") setQuickPayment(true); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [ready]);
 
   if (!ready) return <main className="page v2-page v2"><V2Skeleton height={70} /><V2Skeleton height={120} /><V2Skeleton height={200} /></main>;
 
@@ -114,8 +124,8 @@ export default function RentalsPage() {
     <main className="page v2-page v2">
       <header className="v2-greet">
         <div>
-          <h1>Mes loyers</h1>
-          <p>Suivi de vos {data.tenants.length} locataire{data.tenants.length > 1 ? "s" : ""}</p>
+          <h1>Gestion des loyers</h1>
+          <p>Suivi des paiements et dettes</p>
         </div>
         <button className="fab" aria-label="Ajouter un locataire" onClick={() => openTenant()}><Plus /></button>
       </header>
@@ -128,20 +138,20 @@ export default function RentalsPage() {
         </div>
       </section>
 
-      <section className="v2-card" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", textAlign: "center", gap: 8 }}>
+      <section className="rent-overview">
         <div>
-          <strong className="v2-tile-value" style={{ color: "var(--v2-positive)" }}>{eur.format(totals.expected)}</strong>
-          <div className="v2-tile-label">À recevoir</div>
-        </div>
-        <div style={{ borderInline: "1px solid var(--v2-line)" }}>
-          <strong className="v2-tile-value" style={{ color: totals.unpaid > 0 ? "var(--v2-negative)" : "var(--v2-muted)" }}>{eur.format(totals.unpaid)}</strong>
-          <div className="v2-tile-label">Impayés</div>
+          <strong>{data.tenants.length}</strong><span>Locataires</span>
         </div>
         <div>
-          <strong className="v2-tile-value">{data.tenants.length}</strong>
-          <div className="v2-tile-label">Locataires</div>
+          <strong className="positive">{data.tenants.filter((tenant) => due(tenant) - received(tenant) <= 0).length}</strong><span>Payés</span>
         </div>
+        <div>
+          <strong className="positive">{eur.format(totals.paid)}</strong><span>Perçu</span>
+        </div>
+        <div><strong className={totals.unpaid ? "negative" : ""}>{eur.format(totals.unpaid)}</strong><span>En attente</span></div>
       </section>
+
+      <section className="collection-card"><div className="spread"><div><strong>Collecte du mois</strong><span>{totals.expected ? `${Math.round(totals.paid / totals.expected * 100)} % encaissé` : "Aucun loyer attendu"}</span></div><strong>{eur.format(totals.expected)}</strong></div><div className="collection-track"><i style={{ width: `${totals.expected ? Math.min(totals.paid / totals.expected * 100, 100) : 0}%` }} /></div></section>
 
       {data.tenants.length === 0 ? (
         <V2Empty
@@ -162,7 +172,7 @@ export default function RentalsPage() {
         const debts = data.tenantDebts.filter((debt) => debt.tenantId === tenant.id && !debt.isPaid && debt.month === month && debt.year === year);
 
         return (
-          <section className="v2-card" key={tenant.id}>
+          <section className="tenant-card" key={tenant.id}>
             <div className="spread">
               <div className="row" style={{ minWidth: 0 }}>
                 <V2Avatar name={tenant.name} />
@@ -180,7 +190,7 @@ export default function RentalsPage() {
               </div>
             </div>
 
-            <div className="card-flat" style={{ marginTop: 12 }}>
+            <div className="tenant-finances">
               <div className="spread"><span className="muted small">Loyer</span><strong>{eur.format(tenant.monthlyRent)}</strong></div>
               {carry > 0 ? (
                 <div className="spread" style={{ marginTop: 8 }}>
@@ -228,6 +238,7 @@ export default function RentalsPage() {
           <Field label="Note"><textarea className="textarea" value={tenantDraft.note} onChange={(event) => setTenantDraft({ ...tenantDraft, note: event.target.value })} /></Field>
         </div>
       </Sheet>
+      <Sheet open={quickPayment} title="Choisir un locataire" onClose={() => setQuickPayment(false)}><div className="dense-picker">{data.tenants.map((tenant) => <button className="v2-row" key={tenant.id} onClick={() => { setQuickPayment(false); setPaymentTenant(tenant); setAmount(received(tenant)); setNote(""); }}><V2Avatar name={tenant.name} /><span className="v2-row-main"><strong>{tenant.name}</strong><span>{eur.format(Math.max(due(tenant) - received(tenant), 0))} restant</span></span><Banknote size={18} className="accent" /></button>)}</div></Sheet>
 
       <Sheet
         open={Boolean(paymentTenant)} title="Enregistrer un paiement" submitLabel="Enregistrer"

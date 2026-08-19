@@ -69,6 +69,7 @@ export default function TripsPage() {
     if (!draft.title.trim()) return;
     if (editing) update("trips", editing, draft);
     else create("trips", { ...draft, createdAt: new Date().toISOString() });
+    showToast({ title: editing ? "Voyage modifié" : "Voyage créé", detail: draft.title, tone: "success" });
     setOpen(false);
   };
 

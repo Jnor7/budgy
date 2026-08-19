@@ -20,7 +20,7 @@ const SECTIONS = [
 ];
 
 export default function MorePage() {
-  const { profile, localMode, syncStatus, reload, userId } = useBudgyData();
+  const { data, profile, localMode, syncStatus, reload, userId } = useBudgyData();
   const router = useRouter();
   const { showToast } = useToast();
 
@@ -34,12 +34,12 @@ export default function MorePage() {
     <main className="page v2-page v2">
       <header className="v2-greet">
         <div>
-          <h1>Plus</h1>
-          <p>Votre compte et vos réglages Budgy.</p>
+          <h1>Mon espace</h1>
+          <p>Votre Budgy, vos préférences.</p>
         </div>
       </header>
 
-      <Link className="v2-card row" href="/settings/account" style={{ gap: 14 }}>
+      <Link className="profile-identity" href="/settings/account">
         <V2Avatar name={profile?.username ?? "Budgy"} url={profile?.avatarUrl || undefined} large />
         <div className="list-main">
           <strong style={{ fontSize: 17 }}>{profile?.username ?? "Mon compte"}</strong>
@@ -47,6 +47,8 @@ export default function MorePage() {
         </div>
         <ChevronRight className="muted" />
       </Link>
+
+      <section className="profile-stats" aria-label="Statistiques personnelles"><div><strong>{data.budgetEntries.length}</strong><span>Transactions</span></div><div><strong>{data.trips.length}</strong><span>Voyages</span></div><div><strong>{data.businesses.length}</strong><span>Activités</span></div><div><strong>{data.tenants.length}</strong><span>Locataires</span></div></section>
 
       <section className="v2-card">
         {SECTIONS.map((section) => (
@@ -82,7 +84,7 @@ export default function MorePage() {
         ) : null}
       </section>
 
-      <p className="muted small" style={{ textAlign: "center" }}>Budgy V2.5 · identifiant {userId.slice(0, 8)}…</p>
+      <p className="muted small" style={{ textAlign: "center" }}>Budgy V2.5.1 · identifiant {userId.slice(0, 8)}…</p>
     </main>
   );
 }

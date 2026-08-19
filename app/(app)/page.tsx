@@ -7,7 +7,8 @@ import {
 import Link from "next/link";
 import { useMemo } from "react";
 import { NotificationCenter } from "@/components/notification-center";
-import { V2Donut, V2Empty, V2Skeleton } from "@/components/ui/v2";
+import { QuickActions } from "@/components/quick-actions";
+import { V2Donut, V2Empty, V2Skeleton, categoryColor } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { budgetSummary, entriesForMonth, expenseBreakdown, monthSpent } from "@/lib/domain/budget";
 import { totalDueForMonth } from "@/lib/domain/tenants";
@@ -130,13 +131,13 @@ export default function HomePage() {
                   slices={breakdown}
                   centerValue={eur.format(spent)}
                   centerLabel="dépensés"
-                  size={130}
-                  thickness={18}
+                  size={98}
+                  thickness={14}
                 />
                 <div className="v2-legend">
                   {breakdown.map((slice, index) => (
                     <div className="v2-legend-item" key={slice.label}>
-                      <span className="v2-legend-dot" style={{ background: `var(--v2-cat-${["fixes","variables","loyers","abonnements"][index] ?? "autres"})` }} />
+                      <span className="v2-legend-dot" style={{ background: categoryColor(slice.label, index) }} />
                       <span className="v2-legend-label">{slice.label}</span>
                       <span className="v2-legend-values">
                         <b>{Math.round(slice.share * 100)}%</b>
@@ -150,6 +151,8 @@ export default function HomePage() {
           </section>
         </>
       ) : null}
+
+      <QuickActions />
 
       <section className="v2-card">
         <div className="v2-card-head"><h2>Aperçu rapide</h2></div>
