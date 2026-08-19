@@ -90,8 +90,8 @@ export function enabledModuleKeys(modules: UserModule[]): ModuleKey[] {
 export const isModuleEnabled = (modules: UserModule[], key: ModuleKey) =>
   modules.some((item) => item.moduleKey === key && item.enabled);
 
-/** La barre mobile garde une hiérarchie stable : Accueil + 3 modules + Plus. */
-export const primaryNavigationModules = (modules: ModuleKey[]) => modules.slice(0, 3);
+/** La barre mobile garde une hiérarchie stable : Accueil + 4 modules maximum + Options. */
+export const primaryNavigationModules = (modules: ModuleKey[]) => modules.slice(0, 4);
 
 /** Un compte n'a jamais choisi ses modules : aucune ligne `user_modules`. */
 export const hasConfiguredModules = (modules: UserModule[]) => modules.length > 0;

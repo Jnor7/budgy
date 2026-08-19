@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { NotificationCenter } from "@/components/notification-center";
 import { QuickActions } from "@/components/quick-actions";
-import { V2Donut, V2Empty, V2Skeleton, categoryColor } from "@/components/ui/v2";
+import { V2Avatar, V2Donut, V2Empty, V2Skeleton, categoryColor } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { budgetSummary, entriesForMonth, expenseBreakdown, monthSpent } from "@/lib/domain/budget";
 import { totalDueForMonth } from "@/lib/domain/tenants";
@@ -75,10 +75,11 @@ export default function HomePage() {
 
   return (
     <main className="page v2-page v2">
-      <header className="v2-greet">
-        <div>
-          <h1>{greeting(today.getHours())} {profile?.username ?? "👋"}</h1>
-          <p>Voici un résumé de votre situation.</p>
+      <header className="home-brand-header">
+        <V2Avatar name={profile?.username ?? "Budgy"} url={profile?.avatarUrl || undefined} large />
+        <div className="home-brand-copy">
+          <h1>Budgy</h1>
+          <p>{greeting(today.getHours())} {profile?.username ?? "👋"}</p>
         </div>
         <NotificationCenter />
       </header>

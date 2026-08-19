@@ -32,11 +32,11 @@ describe("registre des modules", () => {
     expect(enabledModuleKeys(modules).sort()).toEqual(["businesses", "trips"].sort());
   });
 
-  it("respecte l'ordre personnel et limite la navigation aux trois premiers modules", () => {
+  it("respecte l'ordre personnel et limite la navigation aux quatre premiers modules", () => {
     const rows = [moduleRow("budget", true, 3), moduleRow("trips", true, 0), moduleRow("rentals", true, 2), moduleRow("businesses", true, 1)];
     const ordered = enabledModuleKeys(rows);
     expect(ordered).toEqual(["trips", "businesses", "rentals", "budget"]);
-    expect(primaryNavigationModules(ordered)).toEqual(["trips", "businesses", "rentals"]);
+    expect(primaryNavigationModules(ordered)).toEqual(["trips", "businesses", "rentals", "budget"]);
   });
 
   it("désactiver un module le retire de la liste active sans supprimer la ligne", () => {

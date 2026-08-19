@@ -11,6 +11,7 @@ import { SyncBadge } from "@/components/ui/premium";
 import { useToast } from "@/components/ui/feedback";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { signOut } from "@/services/auth";
+import { moduleDefinition } from "@/lib/modules/registry";
 
 const SECTIONS = [
   { href: "/settings/account", icon: UserRound, label: "Mon compte", detail: "Pseudo, avatar et mot de passe", tone: "purple" as const },
@@ -20,7 +21,7 @@ const SECTIONS = [
 ];
 
 export default function MorePage() {
-  const { data, profile, localMode, syncStatus, reload, userId } = useBudgyData();
+  const { data, modules, profile, localMode, syncStatus, reload, userId } = useBudgyData();
   const router = useRouter();
   const { showToast } = useToast();
 
@@ -63,6 +64,8 @@ export default function MorePage() {
         ))}
       </section>
 
+      {modules.length > 4 ? <section><div className="section-heading"><h2>Autres modules</h2><span>Actifs dans votre espace</span></div><div className="v2-card">{modules.slice(4).map((key) => { const definition = moduleDefinition(key); return <Link className="v2-row" href={definition.href} key={key}><V2Icon icon={definition.icon} tone={definition.tone} /><span className="v2-row-main"><strong>{definition.label}</strong><span>{definition.tagline}</span></span><ChevronRight size={18} className="muted" /></Link>; })}</div></section> : null}
+
       <section className="v2-card">
         {!localMode ? (
           <button className="v2-row" disabled={syncStatus === "loading" || syncStatus === "syncing"} onClick={() => void reload().then(()=>showToast({title:"Données actualisées",tone:"success"})).catch(()=>showToast({title:"Actualisation impossible",tone:"error"}))}>
@@ -84,7 +87,7 @@ export default function MorePage() {
         ) : null}
       </section>
 
-      <p className="muted small" style={{ textAlign: "center" }}>Budgy V2.5.1 · identifiant {userId.slice(0, 8)}…</p>
+      <p className="muted small" style={{ textAlign: "center" }}>Budgy V2.5.2 · identifiant {userId.slice(0, 8)}…</p>
     </main>
   );
 }

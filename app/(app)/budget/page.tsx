@@ -1,15 +1,13 @@
 "use client";
 
-import { Check, ChevronLeft, ChevronRight, Copy, Plus, ReceiptText, Upload } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, Plus, ReceiptText, Upload, WalletCards } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { RowMenu } from "@/components/ui/menu";
 import { Field, Sheet } from "@/components/ui/modal";
-import { AnimatedSegmented, AppPageHeader, FormSection } from "@/components/ui/premium";
+import { AnimatedSegmented, FormSection } from "@/components/ui/premium";
 import { SwipeRow } from "@/components/ui/swipe-row";
-import { categoryColor } from "@/components/ui/v2";
 import { useToast } from "@/components/ui/feedback";
 import { useBudgyData } from "@/lib/data/data-provider";
-import { budgetSummary, displayPotential, entriesForMonth, expenseBreakdown } from "@/lib/domain/budget";
+import { budgetSummary, displayPotential, entriesForMonth } from "@/lib/domain/budget";
 import { eur, fromDateInput, monthLabel, shortDate, toDateInput } from "@/lib/format";
 import type { BudgetEntry, EntryType } from "@/types/domain";
 
@@ -34,20 +32,15 @@ export default function BudgetPage() {
 
   const entries = useMemo(() => entriesForMonth(data.budgetEntries, selectedMonth), [data.budgetEntries, selectedMonth]);
   const summary = useMemo(() => budgetSummary(entries), [entries]);
-  const breakdown = useMemo(() => expenseBreakdown(entries), [entries]);
   const sections = [
-    { title: "Rentrées", items: entries.filter((item) => item.type === "revenu") },
-    { title: "Charges", items: entries.filter((item) => item.type === "depense" && item.bucket.toLowerCase().includes("charge")) },
-    { title: "Dépenses", items: entries.filter((item) => item.type === "depense" && !item.bucket.toLowerCase().includes("charge")) },
+    { title: "Rentrées", tone: "income", type: "revenu" as EntryType, bucket: "Rentrée", items: entries.filter((item) => item.type === "revenu") },
+    { title: "Charges", tone: "charge", type: "depense" as EntryType, bucket: "Charge fixe", items: entries.filter((item) => item.type === "depense" && item.bucket.toLowerCase().includes("charge")) },
+    { title: "Dépenses", tone: "expense", type: "depense" as EntryType, bucket: "Variable", items: entries.filter((item) => item.type === "depense" && !item.bucket.toLowerCase().includes("charge")) },
   ];
 
   const dateInMonth = () => new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), Math.min(new Date().getDate(), 28), 12);
-  const showCreate = (type: EntryType = "depense") => { setEditing(undefined); setDraft(blankDraft(dateInMonth(), type)); setOpen(true); };
+  const showCreate = (type: EntryType = "depense", bucket?: string) => { setEditing(undefined); setDraft({ ...blankDraft(dateInMonth(), type), bucket: bucket ?? (type === "revenu" ? "Rentrée" : "Variable") }); setOpen(true); };
   const showEdit = (entry: BudgetEntry) => { setEditing(entry.id); setDraft({ ...entry }); setOpen(true); };
-  const duplicate = (entry: BudgetEntry) => {
-    create("budgetEntries", { title: `${entry.title} (copie)`, amount: entry.amount, potentialAmount: entry.potentialAmount, type: entry.type, category: entry.category, bucket: entry.bucket, scope: entry.scope, date: entry.date, note: entry.note, status: "non" });
-    showToast({ title: "Transaction dupliquée", tone: "success" });
-  };
   const save = () => {
     if (!draft.title.trim() || draft.amount <= 0) return;
     if (editing) update("budgetEntries", editing, draft); else create("budgetEntries", draft);
@@ -97,8 +90,6 @@ export default function BudgetPage() {
   if (!ready) return <main className="page finance-page"><div className="skeleton" style={{ height: 70 }} /><div className="skeleton" style={{ height: 180 }} /><div className="skeleton" /></main>;
 
   return <main className="page finance-page">
-    <AppPageHeader title="Budget" subtitle="Réalisé, potentiel et prévisions" action={<button className="compact-add" aria-label="Nouvelle transaction" onClick={() => showCreate()}><Plus size={18} /> Ajouter</button>} />
-
     <section className="month-control" aria-label="Mois du budget">
       <button className="icon-button" onClick={() => moveMonth(-1)} aria-label="Mois précédent"><ChevronLeft /></button>
       <strong key={selectedMonth.toISOString()} className="month-label">{monthLabel(selectedMonth)}</strong>
@@ -112,10 +103,8 @@ export default function BudgetPage() {
 
     <button className="copy-month-action" onClick={copyNext}><Copy size={16} /><span><strong>Copier vers le mois suivant</strong><small>Reprendre ce budget sans créer de doublons</small></span><ChevronRight size={17} /></button>
 
-    {breakdown.length ? <section className="compact-category-card"><header><h2>Catégories</h2><span>{breakdown.length} groupes</span></header>{breakdown.map((slice, index) => <div className="category-compact-row" key={slice.label}><span className="category-dot" style={{ background: categoryColor(slice.label, index) }} /><span><strong>{slice.label}</strong><small>{slice.count} dépense{slice.count > 1 ? "s" : ""}</small></span><span><strong>{eur.format(slice.amount)}</strong><small>{Math.round(slice.share * 100)} %</small></span></div>)}</section> : null}
-
     <div className="budget-sections">
-      {sections.map((section) => { const visible = section.items.filter((entry) => !hidden.includes(entry.id)); return <section className="dense-list-card" key={section.title}><header><h2>{section.title}</h2><strong>{eur.format(visible.reduce((sum, item) => sum + (item.status === "recu" ? item.amount : displayPotential(item)), 0))}</strong></header>{visible.length === 0 ? <p className="dense-empty">Aucun élément ce mois.</p> : visible.map((entry) => <SwipeRow key={entry.id} label={entry.title} onEdit={() => showEdit(entry)} onDelete={() => scheduleDelete(entry)}><div className="budget-entry-row" onClick={() => showEdit(entry)}><button className={`entry-status ${entry.status === "recu" ? "done" : ""}`} aria-label={entry.status === "recu" ? "Passer en attente" : "Marquer réalisé"} onClick={(event) => { event.stopPropagation(); update("budgetEntries", entry.id, { status: entry.status === "recu" ? "non" : "recu" }); }}><Check size={14} /></button><span className="list-main"><strong>{entry.title}</strong><small>{entry.category} · {shortDate(entry.date)} · <em>{entry.status === "recu" ? "Réalisé" : "En attente"}</em></small></span><strong className={entry.type === "revenu" ? "positive" : "negative"}>{entry.type === "revenu" ? "+" : "−"}{eur.format(entry.status === "recu" ? entry.amount : displayPotential(entry))}</strong><RowMenu onEdit={() => showEdit(entry)} onDuplicate={() => duplicate(entry)} onDelete={() => scheduleDelete(entry)} /></div></SwipeRow>)}</section>; })}
+      {sections.map((section) => { const visible = section.items.filter((entry) => !hidden.includes(entry.id)); const done = visible.filter((entry) => entry.status === "recu").length; const progress = visible.length ? done / visible.length * 100 : 0; return <section className={`budget-block budget-${section.tone}`} key={section.title}><header><span><i />{section.title}<small>{visible.length}</small></span><strong>{eur.format(visible.reduce((sum, item) => sum + (item.status === "recu" ? item.amount : displayPotential(item)), 0))}</strong></header><div className="budget-block-progress"><i style={{ width: `${progress}%` }} /></div>{visible.length === 0 ? <p className="dense-empty">Aucun élément ce mois.</p> : visible.map((entry) => <SwipeRow key={entry.id} label={entry.title} onEdit={() => showEdit(entry)} onDelete={() => scheduleDelete(entry)}><div className="budget-jr-row"><span className="budget-row-icon"><WalletCards size={16} /></span><span className="list-main"><strong>{entry.title}</strong><small>{entry.category} · {shortDate(entry.date)}</small>{entry.status === "recu" ? <em>Reçu</em> : <em className="pending">En attente</em>}</span><strong>{eur.format(entry.status === "recu" ? entry.amount : displayPotential(entry))}</strong><button className={`entry-status ${entry.status === "recu" ? "done" : ""}`} aria-label={entry.status === "recu" ? "Passer en attente" : "Marquer reçu"} onClick={() => update("budgetEntries", entry.id, { status: entry.status === "recu" ? "non" : "recu" })}><Check size={14} /></button></div></SwipeRow>)}<button className="budget-block-add" onClick={() => showCreate(section.type, section.bucket)}><Plus size={15} /> Ajouter</button></section>; })}
     </div>
 
     <section className="utility-row"><div><span className="icon-tile icon-purple"><ReceiptText size={18} /></span><span><strong>Import Revolut</strong><small>CSV : description, montant, date</small></span></div><button className="button button-soft" onClick={() => fileRef.current?.click()}><Upload size={16} /> Importer</button><input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importCsv(file); }} /></section>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Ellipsis, Home, type LucideIcon } from "lucide-react";
+import { Home, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
@@ -10,12 +10,12 @@ import { moduleDefinition, primaryNavigationModules } from "@/lib/modules/regist
 interface Tab { href: string; label: string; icon: LucideIcon }
 
 const HOME: Tab = { href: "/", label: "Accueil", icon: Home };
-const MORE: Tab = { href: "/more", label: "Plus", icon: Ellipsis };
+const MORE: Tab = { href: "/more", label: "Options", icon: SlidersHorizontal };
 
 /**
  * La navigation ne montre jamais une destination inutile : elle est
  * entièrement dérivée des modules activés (§6). Rien n'est codé en dur en
- * dehors d'Accueil et Plus, présents pour tout le monde.
+ * dehors d'Accueil et Options, présents pour tout le monde.
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -38,7 +38,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="tabbar-wrap">
         <nav className="tabbar" aria-label="Navigation principale" aria-busy={!ready}>
           {tabs.map(({ href, label, icon: Icon }) => {
-            const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+            const active = href === "/" ? pathname === "/" : href === "/more" ? pathname.startsWith("/more") || pathname.startsWith("/settings") : pathname.startsWith(href);
             return (
               <Link
                 className={`tab ${active ? "active" : ""}`}

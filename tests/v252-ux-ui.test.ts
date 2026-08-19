@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { quickActionsForContext } from "@/components/quick-actions";
 import { categoryColor } from "@/components/ui/v2";
 
-describe("recalibration visuelle V2.5.1", () => {
+describe("recalibration UX/UI V2.5.2", () => {
   it("utilise le slogan officiel sans reconstruire le parcours Auth", () => {
     const source = readFileSync(path.join(process.cwd(), "app/auth/page.tsx"), "utf8");
     expect(source).toContain("Gérez aujourd’hui.");
@@ -21,20 +21,20 @@ describe("recalibration visuelle V2.5.1", () => {
   });
 
   it("ne propose que des actions directes correspondant aux modules actifs", () => {
-    const budgetOnly = quickActionsForContext({ budget: true, rentals: false, businesses: false, dubaiStock: false });
+    const budgetOnly = quickActionsForContext({ modules: ["budget"], hasTenants: false });
     expect(budgetOnly.map((action) => action.key)).toEqual(["expense", "income", "copy-budget"]);
-    expect(budgetOnly.every((action) => action.href.includes("action="))).toBe(true);
-    const management = quickActionsForContext({ budget: false, rentals: true, businesses: true, dubaiStock: true });
-    expect(management.map((action) => action.key)).toEqual(["rent-payment", "dubai-sale", "dubai-expense"]);
-    expect(quickActionsForContext({ budget: false, rentals: false, businesses: true, dubaiStock: false }).map((action) => action.key)).toEqual(["dubai-expense"]);
+    const management = quickActionsForContext({ modules: ["rentals", "trips", "subscriptions"], hasTenants: true });
+    expect(management.map((action) => action.key)).toEqual(["rent-payment", "trip", "subscription"]);
+    expect(quickActionsForContext({ modules: ["rentals"], hasTenants: false })).toEqual([]);
   });
 
   it("conserve une structure Budget dense et le formulaire montant-first", () => {
     const source = readFileSync(path.join(process.cwd(), "app/(app)/budget/page.tsx"), "utf8");
     expect(source).toContain("budget-balance-card");
-    expect(source).toContain("budget-entry-row");
+    expect(source).toContain("budget-jr-row");
     expect(source.indexOf('label="Montant"')).toBeLessThan(source.indexOf('title="Détails"'));
-    expect(source).toContain("onDuplicate");
+    expect(source).toContain("budget-block-add");
+    expect(source).not.toContain("RowMenu");
   });
 
   it("déclare les trois seuils iPhone du brief", () => {

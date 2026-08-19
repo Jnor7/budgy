@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Banknote, Building2, ChevronLeft, ChevronRight, CircleAlert, Plus, RotateCcw,
+  Banknote, Building2, CalendarClock, Check, ChevronLeft, ChevronRight, CircleAlert, Plus, RotateCcw,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RowMenu } from "@/components/ui/menu";
@@ -33,6 +33,7 @@ export default function RentalsPage() {
   const [debtLabel, setDebtLabel] = useState("");
   const [debtAmount, setDebtAmount] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<Tenant>();
+  const [historyTenant, setHistoryTenant] = useState<Tenant>();
   const [quickPayment, setQuickPayment] = useState(false);
   const actionHandled = useRef(false);
   const { showToast } = useToast();
@@ -122,14 +123,6 @@ export default function RentalsPage() {
   return (
     <>
     <main className="page v2-page v2">
-      <header className="v2-greet">
-        <div>
-          <h1>Gestion des loyers</h1>
-          <p>Suivi des paiements et dettes</p>
-        </div>
-        <button className="fab" aria-label="Ajouter un locataire" onClick={() => openTenant()}><Plus /></button>
-      </header>
-
       <section className="v2-card v2-card-tight">
         <div className="spread">
           <button className="icon-button" aria-label="Mois précédent" onClick={() => setCursor(new Date(year, cursor.getMonth() - 1, 1))}><ChevronLeft /></button>
@@ -152,6 +145,8 @@ export default function RentalsPage() {
       </section>
 
       <section className="collection-card"><div className="spread"><div><strong>Collecte du mois</strong><span>{totals.expected ? `${Math.round(totals.paid / totals.expected * 100)} % encaissé` : "Aucun loyer attendu"}</span></div><strong>{eur.format(totals.expected)}</strong></div><div className="collection-track"><i style={{ width: `${totals.expected ? Math.min(totals.paid / totals.expected * 100, 100) : 0}%` }} /></div></section>
+
+      <button className="add-tenant-cta" onClick={() => openTenant()}><span><Plus size={18} /></span><span><strong>Ajouter un locataire</strong><small>Créer son échéance et son loyer mensuel</small></span></button>
 
       {data.tenants.length === 0 ? (
         <V2Empty
@@ -221,6 +216,7 @@ export default function RentalsPage() {
                 <CircleAlert size={17} /> Dette
               </button>
             </div>
+            <button className="tenant-history-link" onClick={() => setHistoryTenant(tenant)}><CalendarClock size={15} /> Historique des paiements</button>
           </section>
         );
       })}
@@ -239,6 +235,7 @@ export default function RentalsPage() {
         </div>
       </Sheet>
       <Sheet open={quickPayment} title="Choisir un locataire" onClose={() => setQuickPayment(false)}><div className="dense-picker">{data.tenants.map((tenant) => <button className="v2-row" key={tenant.id} onClick={() => { setQuickPayment(false); setPaymentTenant(tenant); setAmount(received(tenant)); setNote(""); }}><V2Avatar name={tenant.name} /><span className="v2-row-main"><strong>{tenant.name}</strong><span>{eur.format(Math.max(due(tenant) - received(tenant), 0))} restant</span></span><Banknote size={18} className="accent" /></button>)}</div></Sheet>
+      <Sheet open={Boolean(historyTenant)} title={historyTenant ? `Historique · ${historyTenant.name}` : "Historique"} onClose={() => setHistoryTenant(undefined)}>{historyTenant ? <div className="payment-history"><div className="selected-person"><V2Avatar name={historyTenant.name} /><span><strong>{historyTenant.name}</strong><small>Loyer de base · {eur.format(historyTenant.monthlyRent)}</small></span></div>{data.rentPayments.filter((payment) => payment.tenantId === historyTenant.id).sort((a, b) => b.year - a.year || b.month - a.month).map((payment) => <div className="payment-history-row" key={payment.id}><span className={`entry-status ${payment.isPaid ? "done" : ""}`}><Check size={13} /></span><span><strong>{new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date(payment.year, payment.month - 1, 1))}</strong><small>{payment.isPaid ? "Soldé" : "Versement partiel"}</small></span><strong className={payment.isPaid ? "positive" : "orange"}>{eur.format(payment.amountReceived)}</strong></div>)}{data.rentPayments.every((payment) => payment.tenantId !== historyTenant.id) ? <p className="dense-empty">Aucun paiement enregistré.</p> : null}</div> : null}</Sheet>
 
       <Sheet
         open={Boolean(paymentTenant)} title="Enregistrer un paiement" submitLabel="Enregistrer"
