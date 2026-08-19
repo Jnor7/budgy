@@ -38,6 +38,7 @@ export default function TripsPage() {
   const [draft, setDraft] = useState<Draft>(blank);
   const [pendingDelete, setPendingDelete] = useState<Trip>();
   const [showFriends, setShowFriends] = useState(false);
+  const [coverRefreshing, setCoverRefreshing] = useState(false);
   const { showToast } = useToast();
 
   const visible = useMemo(() => visibleTrips(data.trips, data.tripMembers, userId), [data.tripMembers, data.trips, userId]);
@@ -70,8 +71,20 @@ export default function TripsPage() {
 
   const resolveCover = async (trip: Trip, destination: string, country: string) => {
     const image = await destinationImageProvider.findLandscape(destination, country);
-    if (image.provider === "fallback") return;
+    if (image.provider === "fallback") return false;
     update("trips", trip.id, { coverImageUrl: image.imageUrl, coverImageProvider: image.provider, coverImageId: image.photoId, coverPhotographer: image.photographer, coverPhotographerUrl: image.photographerUrl, coverAttribution: image.attribution });
+    return true;
+  };
+
+  const refreshEditingCover = async () => {
+    if (!editing || coverRefreshing) return;
+    setCoverRefreshing(true);
+    const destination = tripCreationDetails(draft.title.trim() || editing.title, draft.countryName, draft.countryCode);
+    const refreshed = await resolveCover({ ...editing, ...destination }, destination.title, destination.countryName);
+    showToast(refreshed
+      ? { title: "Photo actualisée", detail: "La nouvelle couverture est enregistrée.", tone: "success" }
+      : { title: "Photo indisponible", detail: "Le fond premium reste affiché. Vous pourrez réessayer plus tard." });
+    setCoverRefreshing(false);
   };
 
   const save = () => {
@@ -89,6 +102,7 @@ export default function TripsPage() {
       void resolveCover(trip, title, countryName);
       showToast({ title: "Voyage créé", detail: `${title} ${countryCodeToFlag(countryCode)}`, tone: "success" });
     }
+    setOpen(false);
   };
 
   const deleteTrip = (trip: Trip) => {
@@ -113,7 +127,7 @@ export default function TripsPage() {
     {filtered.length === 0 ? <section className="travel-empty"><span><Plane size={28} /></span><h2>{tab === "shared" ? "Aucun voyage partagé" : tab === "past" ? "Vos souvenirs apparaîtront ici" : "Votre prochaine aventure commence ici"}</h2><p>{tab === "upcoming" ? "Créez un voyage en quelques secondes. La cover et le drapeau s’ajoutent automatiquement." : "Changez de filtre ou préparez un nouveau départ."}</p>{tab === "upcoming" ? <button className="travel-button" onClick={startCreate}><Plus size={17} /> Créer un voyage</button> : null}</section> : null}
     <button className="travel-friends-toggle" aria-expanded={showFriends} onClick={() => setShowFriends((value) => !value)}><span><Users size={19} /><b>Amis de voyage</b><small>Votre cercle, uniquement dans Voyages</small></span><ChevronRight className={showFriends ? "is-open" : ""} /></button>
     {showFriends ? <TravelFriendsPanel /> : null}
-    <FormModal open={open} title={editing ? "Modifier le voyage" : "Nouveau voyage"} submitLabel={editing ? "Enregistrer" : "Créer le voyage"} disableSubmit={!draft.title.trim() || draft.endDate < draft.startDate} onClose={() => setOpen(false)} onSubmit={save} icon={MapPin} tone="cyan"><div className="form-grid travel-create-form"><FormSection title="Où partez-vous ?"><Field label="Destination"><input className="input" autoComplete="off" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Tokyo" /></Field>{suggestions.length > 0 ? <div className="destination-suggestions">{suggestions.map((suggestion) => <button type="button" key={`${suggestion.city}-${suggestion.countryCode}`} onClick={() => setDraft({ ...draft, title: suggestion.city, countryName: suggestion.country, countryCode: suggestion.countryCode })}><MapPin size={15} /><span><b>{suggestion.city}, {suggestion.country}</b><small>{countryCodeToFlag(suggestion.countryCode)} Suggestion</small></span></button>)}</div> : null}<Field label="Pays"><input className="input" value={draft.countryName} onChange={(event) => setDraft({ ...draft, countryName: event.target.value, countryCode: "" })} placeholder="Japon" /></Field></FormSection><FormSection title="Dates"><FormRow><Field label="Départ"><DateField value={toDateInput(draft.startDate)} onChange={(value) => setDraft({ ...draft, startDate: fromDateInput(value) })} /></Field><Field label="Retour"><DateField value={toDateInput(draft.endDate)} onChange={(value) => setDraft({ ...draft, endDate: fromDateInput(value) })} /></Field></FormRow></FormSection><FormSection title="L’essentiel"><FormRow><Field label="Voyageurs"><div className="travel-number-field"><Users size={16} /><input className="input" type="number" min="1" value={draft.peopleCount} onChange={(event) => setDraft({ ...draft, peopleCount: Number(event.target.value) })} /></div></Field><Field label="Budget cible"><AmountField size="compact" value={draft.targetBudget} onChange={(targetBudget) => setDraft({ ...draft, targetBudget })} /></Field></FormRow></FormSection><p className="travel-form-intro">Vols, logements, activités et membres pourront être ajoutés dans le voyage.</p></div></FormModal>
+    <FormModal open={open} title={editing ? "Modifier le voyage" : "Nouveau voyage"} submitLabel={editing ? "Enregistrer" : "Créer le voyage"} disableSubmit={!draft.title.trim() || draft.endDate < draft.startDate} onClose={() => setOpen(false)} onSubmit={save} icon={MapPin} tone="cyan"><div className="form-grid travel-create-form"><FormSection title="Où partez-vous ?"><Field label="Destination"><input className="input" autoComplete="off" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Tokyo" /></Field>{suggestions.length > 0 ? <div className="destination-suggestions">{suggestions.map((suggestion) => <button type="button" key={`${suggestion.city}-${suggestion.countryCode}`} onClick={() => setDraft({ ...draft, title: suggestion.city, countryName: suggestion.country, countryCode: suggestion.countryCode })}><MapPin size={15} /><span><b>{suggestion.city}, {suggestion.country}</b><small>{countryCodeToFlag(suggestion.countryCode)} Suggestion</small></span></button>)}</div> : null}<Field label="Pays"><input className="input" value={draft.countryName} onChange={(event) => setDraft({ ...draft, countryName: event.target.value, countryCode: "" })} placeholder="Japon" /></Field>{editing ? <button type="button" className="travel-cover-refresh" data-form-dirty-ignore onClick={() => void refreshEditingCover()} disabled={coverRefreshing}>{coverRefreshing ? "Recherche de la photo…" : "Rafraîchir la photo"}</button> : null}</FormSection><FormSection title="Dates"><FormRow><Field label="Départ"><DateField value={toDateInput(draft.startDate)} onChange={(value) => setDraft({ ...draft, startDate: fromDateInput(value) })} /></Field><Field label="Retour"><DateField value={toDateInput(draft.endDate)} onChange={(value) => setDraft({ ...draft, endDate: fromDateInput(value) })} /></Field></FormRow></FormSection><FormSection title="L’essentiel"><FormRow><Field label="Voyageurs"><div className="travel-number-field"><Users size={16} /><input className="input" type="number" min="1" value={draft.peopleCount} onChange={(event) => setDraft({ ...draft, peopleCount: Math.max(1, Number(event.target.value) || 1) })} /></div></Field><Field label="Budget cible"><AmountField size="compact" value={draft.targetBudget} onChange={(targetBudget) => setDraft({ ...draft, targetBudget })} /></Field></FormRow></FormSection><p className="travel-form-intro">Vols, logements, activités et membres pourront être ajoutés dans le voyage.</p></div></FormModal>
     <ConfirmDialog open={Boolean(pendingDelete)} title="Supprimer ce voyage ?" detail={`« ${pendingDelete?.title ?? ""} » et ses éléments seront définitivement supprimés.`} onCancel={() => setPendingDelete(undefined)} onConfirm={() => { if (pendingDelete) deleteTrip(pendingDelete); setPendingDelete(undefined); }} />
   </main>;
 }

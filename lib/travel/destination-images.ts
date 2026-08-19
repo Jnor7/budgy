@@ -11,6 +11,30 @@ export interface DestinationImageProvider {
   findLandscape(destination: string, country: string): Promise<DestinationImage>;
 }
 
+const searchAliases: Record<string, string> = {
+  dubai: "Dubai",
+  tokyo: "Tokyo",
+  paris: "Paris",
+  "new york": "New York",
+  "emirats arabes unis": "UAE",
+  "united arab emirates": "UAE",
+  japon: "Japan",
+  japan: "Japan",
+  france: "France",
+  "etats unis": "USA",
+  "etats-unis": "USA",
+  "united states": "USA",
+  usa: "USA",
+};
+
+const searchKey = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+
+export const destinationImageSearchQuery = (destination: string, country: string) => {
+  const city = searchAliases[searchKey(destination)] ?? destination.trim();
+  const nation = searchAliases[searchKey(country)] ?? country.trim();
+  return `${city} ${nation} travel skyline`.replace(/\s+/g, " ").trim();
+};
+
 export const fallbackDestinationImage = (): DestinationImage => ({
   provider: "fallback",
   photoId: "",
@@ -35,4 +59,3 @@ export class ServerDestinationImageProvider implements DestinationImageProvider 
 }
 
 export const destinationImageProvider: DestinationImageProvider = new ServerDestinationImageProvider();
-

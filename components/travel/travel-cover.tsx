@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { destinationFlag } from "@/lib/travel/destinations";
 
 export function TravelCover({
-  imageUrl, destination, countryCode, className = "", eager = false, children,
+  imageUrl, destination, className = "", eager = false, children,
 }: {
   imageUrl?: string; destination: string; countryCode?: string; className?: string;
   eager?: boolean; children?: React.ReactNode;
@@ -19,9 +18,7 @@ export function TravelCover({
         // eslint-disable-next-line @next/next/no-img-element
         <img src={imageUrl} alt={`Vue de ${destination}`} loading={eager ? "eager" : "lazy"} decoding="async" onError={() => setFailedUrl(imageUrl ?? "")} />
       ) : (
-        <div className="travel-cover-fallback" aria-hidden="true">
-          <span>{destinationFlag(destination, countryCode)}</span>{children ? null : <b>{destination}</b>}
-        </div>
+        <div className="travel-cover-fallback" aria-hidden="true" />
       )}
       <div className="travel-cover-shade" />
       {children ? <div className="travel-cover-content">{children}</div> : null}

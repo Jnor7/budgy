@@ -79,6 +79,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
    */
   const [repositoryReady, setRepositoryReady] = useState(false);
   const repositoryRef = useRef<SupabaseRepository | null>(null);
+  const pendingInsertsRef = useRef(new Map<string, Promise<void>>());
   const localMode = !usesSupabase;
   const supabaseConfigured = !localMode;
 
@@ -219,13 +220,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const repository = repositoryRef.current;
     if (repository) {
       setSyncStatus("syncing");
-      void repository.insert(key, entity as AppEntity).then(() => {
+      const insertion = repository.insert(key, entity as AppEntity).then(() => {
         setSyncError("");
         setSyncStatus("idle");
       }).catch((reason: unknown) => {
         setData((current) => ({ ...current, [key]: current[key].filter((item) => item.id !== entity.id) } as AppData));
         reportError(reason);
       });
+      pendingInsertsRef.current.set(entity.id, insertion);
+      void insertion.finally(() => pendingInsertsRef.current.delete(entity.id));
     }
     return entity;
   }, [reportError, userId]);
@@ -239,7 +242,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const repository = repositoryRef.current;
     if (repository) {
       setSyncStatus("syncing");
-      void repository.update(key, id, patch as Partial<AppEntity>).then(() => {
+      const pendingInsert = pendingInsertsRef.current.get(id);
+      const persistence = pendingInsert
+        ? pendingInsert.then(() => repository.update(key, id, patch as Partial<AppEntity>))
+        : repository.update(key, id, patch as Partial<AppEntity>);
+      void persistence.then(() => {
         setSyncError("");
         setSyncStatus("idle");
       }).catch((reason: unknown) => {

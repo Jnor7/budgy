@@ -86,9 +86,16 @@ export function FormModal({
   const dirtyRef = useRef(false);
   const confirmCloseRef = useRef(false);
   const previousFocus = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  const onSubmitRef = useRef(onSubmit);
   const [closing, setClosing] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    onSubmitRef.current = onSubmit;
+  }, [onClose, onSubmit]);
 
   const setCloseConfirmation = useCallback((value: boolean) => {
     confirmCloseRef.current = value;
@@ -108,9 +115,9 @@ export function FormModal({
     closeTimer.current = window.setTimeout(() => {
       closingRef.current = false;
       setClosing(false);
-      (after ?? onClose)();
+      (after ?? onCloseRef.current)();
     }, 180);
-  }, [onClose]);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -152,7 +159,7 @@ export function FormModal({
   const submit = () => {
     dirtyRef.current = false;
     setDirty(false);
-    closeWith(onSubmit);
+    closeWith(() => onSubmitRef.current());
   };
 
   const discardAndClose = () => {
