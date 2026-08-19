@@ -5,7 +5,7 @@ import { MODULE_KEYS } from "@/lib/modules/registry";
 import type { Database, Json } from "@/types/database";
 import type { AppData, AppDataKey, AppEntity, DirectoryProfile, ModuleKey, Profile, TripCoverPatch, UserPreferences } from "@/types/domain";
 import type { Airport } from "@/lib/airports/airports";
-import { airportCountryCodesMatching, airportCountryName } from "@/lib/airports/countries";
+import { airportCountriesFromCodes, airportCountryCodesMatching, airportCountryName, type AirportCountry } from "@/lib/airports/countries";
 import { countryCodeToFlag } from "@/lib/travel/destinations";
 
 export interface RemoteImportResult { inserted: number; skipped: number; batchId?: string; alreadyImported: boolean; }
@@ -201,6 +201,12 @@ export class SupabaseRepository {
       };
       return [airport.code, airport] as const;
     })).values()].slice(0, 24);
+  }
+
+  async listAirportCountries(): Promise<AirportCountry[]> {
+    const { data, error } = await this.client.rpc("list_airport_country_codes", {});
+    if (error) throw error;
+    return airportCountriesFromCodes((data ?? []).map((row) => row.country_code));
   }
 
   async markNotificationRead(id: string) {

@@ -18,6 +18,16 @@ const COMMON_ALIASES: Record<string, string[]> = {
   US: ["usa", "etats unis", "united states"],
 };
 
+const TRAVEL_COUNTRY_LABELS: Record<string, string> = {
+  CD: "République démocratique du Congo",
+  CG: "Congo",
+};
+
+export interface AirportCountry {
+  code: string;
+  name: string;
+}
+
 /**
  * Intl fournit le catalogue ISO complet et ses noms localises : aucune liste
  * reduite de destinations n'est entretenue dans l'application.
@@ -26,9 +36,40 @@ const regionCodes = Array.from({ length: 26 * 26 }, (_, index) =>
   `${String.fromCharCode(65 + Math.floor(index / 26))}${String.fromCharCode(65 + (index % 26))}`,
 ).filter((code) => frenchRegions.of(code) !== code || englishRegions.of(code) !== code);
 
+const compareCountries = (left: AirportCountry, right: AirportCountry) => left.name.localeCompare(right.name, "fr", { sensitivity: "base" });
+
 export function airportCountryName(countryCode: string) {
   const code = countryCode.trim().toUpperCase();
   return frenchRegions.of(code) || code;
+}
+
+export function travelCountryName(countryCode: string) {
+  const code = countryCode.trim().toUpperCase();
+  return TRAVEL_COUNTRY_LABELS[code] ?? airportCountryName(code);
+}
+
+export function airportCountriesFromCodes(countryCodes: string[]) {
+  return [...new Set(countryCodes.map((code) => code.trim().toUpperCase()).filter((code) => /^[A-Z]{2}$/.test(code)))]
+    .map((code) => ({ code, name: travelCountryName(code) }))
+    .sort(compareCountries);
+}
+
+/** Repli local complet fourni par Intl quand Supabase n'est pas disponible. */
+export const allAirportCountries = airportCountriesFromCodes(regionCodes);
+
+export function searchAirportCountries(countries: AirportCountry[], query: string, limit = 12) {
+  const needle = normalize(query);
+  if (!needle) return [];
+  return countries
+    .filter((country) => normalize(country.name).includes(needle) || normalize(country.code).includes(needle))
+    .sort((left, right) => {
+      const leftName = normalize(left.name);
+      const rightName = normalize(right.name);
+      const leftRank = normalize(left.code) === needle ? 0 : leftName === needle ? 1 : leftName.startsWith(needle) ? 2 : 3;
+      const rightRank = normalize(right.code) === needle ? 0 : rightName === needle ? 1 : rightName.startsWith(needle) ? 2 : 3;
+      return leftRank - rightRank || compareCountries(left, right);
+    })
+    .slice(0, Math.max(1, limit));
 }
 
 export function airportCountryCodesMatching(query: string) {

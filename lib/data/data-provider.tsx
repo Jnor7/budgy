@@ -8,6 +8,7 @@ import { enabledModuleKeys, MODULE_KEYS } from "@/lib/modules/registry";
 import type { AppData, AppDataKey, AppEntity, DirectoryProfile, ModuleKey, Profile, TripCoverPatch } from "@/types/domain";
 import { demoData, emptyData, LOCAL_USER_ID } from "@/lib/data/seed";
 import type { Airport } from "@/lib/airports/airports";
+import { allAirportCountries, type AirportCountry } from "@/lib/airports/countries";
 
 const STORAGE_KEY = "budgy.local-data.v1";
 
@@ -50,6 +51,7 @@ interface DataContextValue {
   removeTravelFriend: (friendId: string) => Promise<void>;
   searchTravelProfiles: (query: string) => Promise<DirectoryProfile[]>;
   searchAirportDirectory: (query: string) => Promise<Airport[]>;
+  loadAirportCountries: () => Promise<AirportCountry[]>;
   markNotificationRead: (id: string) => Promise<void>;
   /** Alias explicite de `!localMode`, pour ne jamais confondre "configuré" et "prêt". */
   supabaseConfigured: boolean;
@@ -84,6 +86,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [repositoryReady, setRepositoryReady] = useState(false);
   const repositoryRef = useRef<SupabaseRepository | null>(null);
   const pendingInsertsRef = useRef(new Map<string, Promise<void>>());
+  const airportCountriesRef = useRef<AirportCountry[] | null>(null);
   const dataRef = useRef(data);
   const localMode = !usesSupabase;
   const supabaseConfigured = !localMode;
@@ -444,6 +447,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return repositoryRef.current?.searchAirports(query).catch(() => []) ?? [];
   }, []);
 
+  const loadAirportCountries = useCallback(async () => {
+    if (airportCountriesRef.current) return airportCountriesRef.current;
+    const repository = repositoryRef.current;
+    const countries = repository
+      ? await repository.listAirportCountries().catch(() => allAirportCountries)
+      : allAirportCountries;
+    airportCountriesRef.current = countries;
+    return countries;
+  }, []);
+
   useEffect(() => {
     dataRef.current = data;
   }, [data]);
@@ -489,13 +502,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     removeTravelFriend,
     searchTravelProfiles,
     searchAirportDirectory,
+    loadAirportCountries,
     markNotificationRead,
     supabaseConfigured,
     repositoryReady,
   }), [
     avatarUrl, create, data, directory, displayName, importArchive, inviteToTrip, localMode, markNotificationRead,
     modules, modulesConfigured, profile, ready, reload, remove, repositoryReady, respondInvitation, saveProfile,
-    respondTravelFriendRequest, removeTravelFriend, searchAirportDirectory, searchTravelProfiles, sendTravelFriendRequest,
+    respondTravelFriendRequest, removeTravelFriend, searchAirportDirectory, loadAirportCountries, searchTravelProfiles, sendTravelFriendRequest,
     setModules, supabaseConfigured, syncError, syncStatus, update, updateAndWait, updateTripCoverAndWait, userId,
   ]);
 

@@ -30,6 +30,10 @@ export interface Database {
         Args: { p_query: string; p_limit?: number };
         Returns: { id: number; ident: string; iata_code: string | null; icao_code: string | null; name: string; municipality: string; country_code: string; latitude: number | null; longitude: number | null; type: string }[];
       };
+      list_airport_country_codes: {
+        Args: Record<string, never>;
+        Returns: { country_code: string }[];
+      };
       update_trip_cover: {
         Args: {
           p_trip_id: string;
