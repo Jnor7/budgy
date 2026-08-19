@@ -9,7 +9,10 @@ export const migrationManifestSchema = z.object({
 }).passthrough();
 
 export type MigrationManifest = z.infer<typeof migrationManifestSchema>;
-export type ArchiveDataKey = Exclude<AppDataKey, "userModules" | "tripMembers" | "tripInvitations" | "notifications" | "tripExpenses" | "tripExpenseSplits">;
+export type ArchiveDataKey = Exclude<AppDataKey,
+  | "userModules" | "tripMembers" | "tripInvitations" | "notifications"
+  | "tripExpenses" | "tripExpenseSplits" | "travelFriendRequests" | "travelFriends"
+>;
 
 const text = z.string();
 const nonEmptyText = z.string().min(1);

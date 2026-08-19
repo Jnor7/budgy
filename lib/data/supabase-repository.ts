@@ -4,6 +4,8 @@ import { entityKeys, entityTables, fromDatabaseRow, toDatabasePayload, toDatabas
 import { MODULE_KEYS } from "@/lib/modules/registry";
 import type { Database, Json } from "@/types/database";
 import type { AppData, AppDataKey, AppEntity, DirectoryProfile, ModuleKey, Profile, UserPreferences } from "@/types/domain";
+import type { Airport } from "@/lib/airports/airports";
+import { countryCodeToFlag } from "@/lib/travel/destinations";
 
 export interface RemoteImportResult { inserted: number; skipped: number; batchId?: string; alreadyImported: boolean; }
 
@@ -119,6 +121,36 @@ export class SupabaseRepository {
     });
     if (error) throw error;
     return (data ?? {}) as Record<string, unknown>;
+  }
+
+  async sendTravelFriendRequest(handle: string) {
+    const { data, error } = await this.client.rpc("send_travel_friend_request", { p_handle: handle });
+    if (error) throw error;
+    return (data ?? {}) as Record<string, unknown>;
+  }
+
+  async respondTravelFriendRequest(requestId: string, accept: boolean) {
+    const { data, error } = await this.client.rpc("respond_travel_friend_request", {
+      p_request_id: requestId,
+      p_accept: accept,
+    });
+    if (error) throw error;
+    return (data ?? {}) as Record<string, unknown>;
+  }
+
+  async removeTravelFriend(friendId: string) {
+    const { error } = await this.client.rpc("remove_travel_friend", { p_friend_id: friendId });
+    if (error) throw error;
+  }
+
+  async searchAirports(query: string): Promise<Airport[]> {
+    const { data, error } = await this.client.rpc("search_airports", { p_query: query, p_limit: 30 });
+    if (error) throw error;
+    return (data ?? []).filter((row) => row.iata_code).map((row) => ({
+      code: row.iata_code!, city: row.municipality, name: row.name,
+      country: row.country_code, countryCode: row.country_code,
+      flag: countryCodeToFlag(row.country_code), ident: row.ident,
+    }));
   }
 
   async markNotificationRead(id: string) {

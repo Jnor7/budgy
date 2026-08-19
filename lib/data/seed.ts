@@ -15,6 +15,7 @@ export const emptyData: AppData = {
   tripActivities: [], tripChecklistItems: [], attachments: [],
   userModules: [], tripMembers: [], tripInvitations: [],
   notifications: [], tripExpenses: [], tripExpenseSplits: [],
+  travelFriendRequests: [], travelFriends: [],
 };
 
 export const demoData: AppData = {
@@ -76,4 +77,5 @@ export const demoData: AppData = {
     createdAt: iso(-8, 1), updatedAt: iso(-8, 1),
   })),
   tripMembers: [], tripInvitations: [], notifications: [], tripExpenses: [], tripExpenseSplits: [],
+  travelFriendRequests: [], travelFriends: [],
 };

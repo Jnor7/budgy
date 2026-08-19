@@ -1,4 +1,4 @@
-export interface Airport { code:string; city:string; name:string; country:string; flag:string; }
+export interface Airport { code:string; city:string; name:string; country:string; flag:string; countryCode?:string; ident?:string; }
 
 export const airports:Airport[]=[
   {

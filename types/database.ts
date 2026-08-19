@@ -26,6 +26,17 @@ export interface Database {
         Args: { p_handle: string };
         Returns: { user_id: string; username: string; avatar_url: string }[];
       };
+      search_airports: {
+        Args: { p_query: string; p_limit?: number };
+        Returns: { id: number; ident: string; iata_code: string | null; icao_code: string | null; name: string; municipality: string; country_code: string; latitude: number | null; longitude: number | null; type: string }[];
+      };
+      find_travel_user: {
+        Args: { p_handle: string };
+        Returns: { user_id: string; username: string; avatar_url: string }[];
+      };
+      send_travel_friend_request: { Args: { p_handle: string }; Returns: Json };
+      respond_travel_friend_request: { Args: { p_request_id: string; p_accept: boolean }; Returns: Json };
+      remove_travel_friend: { Args: { p_friend_id: string }; Returns: undefined };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

@@ -1,19 +1,94 @@
 "use client";
-import { ArrowLeft, BedDouble, CalendarDays, Check, CirclePlus, ClipboardCheck, MapPin, Plane, Plus, TicketCheck } from "lucide-react";import Link from "next/link";import { useParams } from "next/navigation";import { useState } from "react";import { AirportPicker } from "@/components/ui/airport-picker";import { TripCollaboration } from "@/components/trip-collaboration";import { canEditTrip, canManageTripMembers, roleLabel, tripRole } from "@/lib/domain/permissions";import { Card,MetricCard } from "@/components/ui/card";import { Field,FormModal } from "@/components/ui/modal";import { AmountField,DateField } from "@/components/ui/premium";import { RowMenu } from "@/components/ui/menu";import { useBudgyData } from "@/lib/data/data-provider";import { tripTotals } from "@/lib/domain/trips";import { eur,fullDate,fromDateInput,shortDate,toDateInput } from "@/lib/format";import type { Accommodation,Flight,TripActivity } from "@/types/domain";
-type Kind="flight"|"stay"|"activity"|"check";type Draft={title:string;city:string;fromCode:string;toCode:string;startDate:string;endDate:string;price:number;link:string;status:string;note:string};const blank=(tripDate:string):Draft=>({title:"",city:"",fromCode:"CDG",toCode:"DXB",startDate:tripDate,endDate:tripDate,price:0,link:"",status:"a_reserver",note:""});const quick=["Passeport","Visa","Assurance","eSIM","Chargeur","Adaptateur","Médicaments","Crème solaire","Vêtements","Chaussures confort","Argent liquide","Carte bancaire"];
-export default function TripDetailPage(){const {id}=useParams<{id:string}>();const {data,ready,create,update,remove,userId}=useBudgyData();const trip=data.trips.find((x)=>x.id===id);const [kind,setKind]=useState<Kind>();const [editing,setEditing]=useState<string>();const [draft,setDraft]=useState<Draft>(()=>blank(new Date().toISOString()));const [airportField,setAirportField]=useState<"from"|"to">();if(!ready)return <main className="page page-narrow stack"><div className="skeleton" style={{height:150}}/><div className="skeleton"/></main>;if(!trip)return <main className="page page-narrow stack"><Link className="button button-soft" href="/trips"><ArrowLeft size={17}/>Retour</Link><Card><p>Voyage introuvable.</p></Card></main>;
- const role=tripRole(trip,data.tripMembers,userId);const canEdit=canEditTrip(trip,data.tripMembers,userId);const canManage=canManageTripMembers(trip,data.tripMembers,userId);
- const flights=data.flights.filter((x)=>x.tripId===id),stays=data.accommodations.filter((x)=>x.tripId===id),activities=data.tripActivities.filter((x)=>x.tripId===id),checks=data.tripChecklistItems.filter((x)=>x.tripId===id);const totals=tripTotals(flights,stays,activities);
- const openCreate=(value:Kind)=>{setKind(value);setEditing(undefined);setDraft(blank(trip.startDate));};const editFlight=(x:Flight)=>{setKind("flight");setEditing(x.id);setDraft({title:x.airline,city:"",fromCode:x.fromCode,toCode:x.toCode,startDate:x.departDate,endDate:x.arriveDate,price:x.price,link:x.bookingLink,status:x.status,note:x.attachmentNote});};const editStay=(x:Accommodation)=>{setKind("stay");setEditing(x.id);setDraft({title:x.name,city:x.city,fromCode:"",toCode:"",startDate:x.startDate,endDate:x.endDate,price:x.price,link:x.bookingLink,status:x.status,note:x.attachmentNote});};const editActivity=(x:TripActivity)=>{setKind("activity");setEditing(x.id);setDraft({title:x.title,city:x.city,fromCode:"",toCode:"",startDate:x.activityDate,endDate:x.activityDate,price:x.price,link:x.link,status:x.status,note:x.note});};
- const budgetFor=(title:string,price:number,date:string)=>{if(price<=0)return;create("budgetEntries",{title,amount:price,potentialAmount:0,type:"depense",category:"Voyage",bucket:"Voyage",scope:trip.title,date,note:"Créé depuis Voyages",status:"non"});};
- const save=()=>{if(!kind||!draft.title.trim())return;if(kind==="flight"){const payload={tripId:id,airline:draft.title,fromCode:draft.fromCode,toCode:draft.toCode,departDate:draft.startDate,arriveDate:draft.endDate,price:draft.price,bookingLink:draft.link,attachmentNote:draft.note,status:draft.status};if(editing)update("flights",editing,payload);else{create("flights",payload);budgetFor(`Vol - ${draft.title}`,draft.price,draft.startDate);}}else if(kind==="stay"){const payload={tripId:id,name:draft.title,city:draft.city,startDate:draft.startDate,endDate:draft.endDate,price:draft.price,bookingLink:draft.link,attachmentNote:draft.note,status:draft.status};if(editing)update("accommodations",editing,payload);else{create("accommodations",payload);budgetFor(`Logement - ${draft.title}`,draft.price,draft.startDate);}}else if(kind==="activity"){const payload={tripId:id,title:draft.title,city:draft.city,activityDate:draft.startDate,price:draft.price,link:draft.link,status:draft.status,note:draft.note};if(editing)update("tripActivities",editing,payload);else{create("tripActivities",payload);budgetFor(`Activité - ${draft.title}`,draft.price,draft.startDate);}}else if(kind==="check"){create("tripChecklistItems",{tripId:id,title:draft.title,category:"Général",isDone:false});}setKind(undefined);};
- const toggleQuick=(title:string)=>{const existing=checks.find((x)=>x.title===title);if(existing)remove("tripChecklistItems",existing.id);else create("tripChecklistItems",{tripId:id,title,category:"Ajout rapide",isDone:false});};
- return <main className="page page-narrow stack"><div className="spread"><Link className="icon-button" href="/trips"><ArrowLeft/></Link><strong>Détail voyage</strong>{canManage?<button className="icon-button" aria-label="Marquer le voyage comme terminé" onClick={()=>update("trips",trip.id,{isCompleted:!trip.isCompleted})}><Check className={trip.isCompleted?"positive":"muted"}/></button>:<span className="muted small">{role?roleLabel(role):""}</span>}</div><div className="bubble-header"><h1 style={{fontSize:32}}>{trip.title}</h1><p>{trip.destinationSummary} · {fullDate(trip.startDate)}</p></div><div className="grid-2"><MetricCard icon={TicketCheck} label="Dépensé" value={eur.format(totals.totalBudget)} tone="purple"/><MetricCard icon={CalendarDays} label="Budget restant" value={eur.format(trip.targetBudget-totals.totalBudget)} tone={trip.targetBudget>=totals.totalBudget?"green":"orange"}/></div>
- <Section title="Vols" icon={<Plane/>} canEdit={canEdit} onAdd={()=>openCreate("flight")}>{flights.map((flight)=><div className="list-row" key={flight.id} onClick={()=>editFlight(flight)}><span className="icon-tile icon-cyan"><Plane/></span><div className="list-main"><strong>{flight.airline}</strong><span className="muted small">{flight.fromCode} → {flight.toCode} · {shortDate(flight.departDate)}</span></div><strong>{eur.format(flight.price)}</strong><RowMenu onEdit={()=>editFlight(flight)} onDelete={()=>remove("flights",flight.id)}/></div>)}</Section>
- <Section title="Logements" icon={<BedDouble/>} canEdit={canEdit} onAdd={()=>openCreate("stay")}>{stays.map((stay)=><div className="list-row" key={stay.id} onClick={()=>editStay(stay)}><span className="icon-tile icon-purple"><BedDouble/></span><div className="list-main"><strong>{stay.name}</strong><span className="muted small">{stay.city} · {shortDate(stay.startDate)}</span></div><strong>{eur.format(stay.price)}</strong><RowMenu onEdit={()=>editStay(stay)} onDelete={()=>remove("accommodations",stay.id)}/></div>)}</Section>
- <Section title="Activités" icon={<MapPin/>} canEdit={canEdit} onAdd={()=>openCreate("activity")}>{activities.map((activity)=><div className="list-row" key={activity.id} onClick={()=>editActivity(activity)}><span className="icon-tile icon-green"><MapPin/></span><div className="list-main"><strong>{activity.title}</strong><span className="muted small">{activity.city} · {shortDate(activity.activityDate)}</span></div><strong>{eur.format(activity.price)}</strong><RowMenu onEdit={()=>editActivity(activity)} onDelete={()=>remove("tripActivities",activity.id)}/></div>)}</Section>
- <Section title="Check-list" icon={<ClipboardCheck/>} canEdit={canEdit} onAdd={()=>openCreate("check")}>{checks.map((item)=><div className="list-row" key={item.id}><button className="checklist-toggle" onClick={()=>update("tripChecklistItems",item.id,{isDone:!item.isDone})}><span className={`status-dot ${item.isDone?"active":""}`}>{item.isDone&&<Check size={14}/>}</span><span className="list-main"><strong style={{textDecoration:item.isDone?"line-through":"none",color:item.isDone?"var(--muted)":"inherit"}}>{item.title}</strong><span className="muted small">{item.category}</span></span></button><button className="button button-ghost negative" onClick={()=>remove("tripChecklistItems",item.id)}>Retirer</button></div>)}</Section>
- <TripCollaboration trip={trip}/>
- <FormModal open={Boolean(kind)} title={editing?`Modifier ${kind==="flight"?"le vol":kind==="stay"?"le logement":"l’activité"}`:kind==="flight"?"Ajouter un vol":kind==="stay"?"Ajouter un logement":kind==="activity"?"Ajouter une activité":"Ajouter Check-list"} submitLabel={editing?"Enregistrer les modifications":"Ajouter"} disableSubmit={kind!=="check"&&!draft.title.trim()} onClose={()=>setKind(undefined)} onSubmit={()=>{if(kind==="check"&&!draft.title.trim()&&checks.length>0){setKind(undefined);return;}save();}} icon={kind==="flight"?Plane:kind==="stay"?BedDouble:kind==="activity"?MapPin:ClipboardCheck} tone={kind==="flight"?"cyan":kind==="stay"?"purple":kind==="activity"?"green":"orange"}><div className="form-grid">{kind==="check"?<><Field label="Titre personnalisé"><input className="input" value={draft.title} placeholder="Optionnel si vous utilisez l’ajout rapide" onChange={(e)=>setDraft({...draft,title:e.target.value})}/></Field><h3 className="section-title">Ajout rapide</h3>{quick.map((title)=>{const added=checks.some((x)=>x.title===title);return <button type="button" className="card-flat spread" key={title} onClick={()=>toggleQuick(title)}><strong style={{color:added?"var(--muted)":"var(--text)"}}>{title}</strong><span className={`status-dot ${added?"active":""}`} style={{borderColor:"var(--green)",background:added?"var(--green)":"white"}}>{added?<Check size={14}/>:<Plus size={14} className="positive"/>}</span></button>;})}</>:<><Field label={kind==="flight"?"Compagnie":kind==="stay"?"Nom du logement":"Titre"}><input className="input" value={draft.title} onChange={(e)=>setDraft({...draft,title:e.target.value})}/></Field>{kind==="flight"?<Card><button type="button" className="list-row" onClick={()=>setAirportField("from")}><span className="icon-tile icon-cyan"><Plane/></span><div className="list-main"><span className="muted small">Départ</span><strong style={{fontSize:23}}>{draft.fromCode}</strong></div><CirclePlus className="accent"/></button><button type="button" className="list-row" onClick={()=>setAirportField("to")}><span className="icon-tile icon-purple"><Plane/></span><div className="list-main"><span className="muted small">Arrivée</span><strong style={{fontSize:23}}>{draft.toCode}</strong></div><CirclePlus className="accent"/></button></Card>:<Field label="Ville"><input className="input" value={draft.city} onChange={(e)=>setDraft({...draft,city:e.target.value})}/></Field>}<Field label="Prix"><AmountField size="modal" value={draft.price} onChange={(price)=>setDraft({...draft,price})} /></Field><div className="grid-2"><Field label={kind==="activity"?"Date":"Début"}><DateField value={toDateInput(draft.startDate)} onChange={(v)=>setDraft({...draft,startDate:fromDateInput(v)})}/></Field>{kind!=="activity"&&<Field label="Fin"><DateField value={toDateInput(draft.endDate)} onChange={(v)=>setDraft({...draft,endDate:fromDateInput(v)})}/></Field>}</div><Field label="Lien réservation"><input className="input" type="url" value={draft.link} placeholder="https://…" onChange={(e)=>setDraft({...draft,link:e.target.value})}/></Field><Field label="Note"><textarea className="textarea" value={draft.note} onChange={(e)=>setDraft({...draft,note:e.target.value})}/></Field></>}</div></FormModal><AirportPicker open={Boolean(airportField)} title={airportField==="from"?"Aéroport de départ":"Aéroport d’arrivée"} value={airportField==="from"?draft.fromCode:draft.toCode} onClose={()=>setAirportField(undefined)} onSelect={(code)=>setDraft({...draft,[airportField==="from"?"fromCode":"toCode"]:code})}/>
- </main>;}
-function Section({title,icon,onAdd,canEdit=true,children}:{title:string;icon:React.ReactNode;onAdd:()=>void;canEdit?:boolean;children:React.ReactNode}){return <Card><div className="spread"><div className="row"><span className="icon-tile icon-purple">{icon}</span><h2 className="section-title" style={{margin:0}}>{title}</h2></div>{canEdit?<button className="button button-soft" onClick={onAdd}><Plus size={16}/>Ajouter</button>:null}</div>{children}</Card>;}
+
+import { ArrowLeft, BedDouble, Check, ClipboardCheck, MapPin, Plane, Receipt, Wallet } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import { TravelCover } from "@/components/travel/travel-cover";
+import { TripChecklistPanel } from "@/components/travel/trip-checklist-panel";
+import { TripExpensesPanel } from "@/components/travel/trip-expenses-panel";
+import { TripItineraryPanel } from "@/components/travel/trip-itinerary-panel";
+import { TripMembersPanel } from "@/components/travel/trip-members-panel";
+import { V2Avatar, V2Skeleton } from "@/components/ui/v2";
+import { useBudgyData } from "@/lib/data/data-provider";
+import { canManageTripMembers, roleLabel, tripParticipants, tripRole } from "@/lib/domain/permissions";
+import { tripExpensesTotal } from "@/lib/domain/trip-expenses";
+import { eur, shortDate } from "@/lib/format";
+import { buildItinerary } from "@/lib/travel/itinerary";
+import { countryCodeToFlag } from "@/lib/travel/destinations";
+import { timeLabel, tripCountdown, tripDayCount, tripRangeLabel } from "@/lib/travel/presentation";
+import type { Accommodation, Flight, TripActivity, TripChecklistItem } from "@/types/domain";
+
+type Tab = "overview" | "itinerary" | "expenses" | "checklist" | "members";
+
+export default function TripDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const { data, ready, userId, displayName, update } = useBudgyData();
+  const [tab, setTab] = useState<Tab>("overview");
+  const trip = data.trips.find((item) => item.id === id);
+  const flights = useMemo(() => data.flights.filter((item) => item.tripId === id), [data.flights, id]);
+  const stays = useMemo(() => data.accommodations.filter((item) => item.tripId === id), [data.accommodations, id]);
+  const activities = useMemo(() => data.tripActivities.filter((item) => item.tripId === id), [data.tripActivities, id]);
+  const checks = useMemo(() => data.tripChecklistItems.filter((item) => item.tripId === id), [data.tripChecklistItems, id]);
+  const expenses = useMemo(() => data.tripExpenses.filter((item) => item.tripId === id), [data.tripExpenses, id]);
+
+  if (!ready) return <main className="page travel-detail"><V2Skeleton height={340} /><V2Skeleton height={120} /></main>;
+  if (!trip) return <main className="page travel-detail"><Link className="travel-back-inline" href="/trips"><ArrowLeft size={18} /> Voyages</Link><section className="travel-empty"><span><MapPin size={25} /></span><h2>Voyage introuvable</h2><p>Il a peut-être été supprimé ou vous n’avez plus accès à ce voyage.</p></section></main>;
+
+  const participants = tripParticipants(trip, data.tripMembers);
+  const role = tripRole(trip, data.tripMembers, userId);
+  const canManage = canManageTripMembers(trip, data.tripMembers, userId);
+  const spent = tripExpensesTotal(expenses);
+  const completedChecks = checks.filter((item) => item.isDone).length;
+  const itinerary = buildItinerary(flights, stays, activities);
+
+  return <main className="page travel-detail">
+    <TravelCover imageUrl={trip.coverImageUrl} destination={trip.title} countryCode={trip.countryCode} className="travel-detail-hero" eager>
+      <header><Link href="/trips" aria-label="Retour aux voyages"><ArrowLeft size={20} /></Link>{canManage ? <button aria-label={trip.isCompleted ? "Rouvrir le voyage" : "Marquer comme terminé"} onClick={() => update("trips", trip.id, { isCompleted: !trip.isCompleted })}><Check size={19} /></button> : <span>{role ? roleLabel(role) : ""}</span>}</header>
+      <div className="travel-detail-title"><span>{tripCountdown(trip.startDate)}</span><h1>{trip.title} <em>{countryCodeToFlag(trip.countryCode)}</em></h1><p>{tripRangeLabel(trip.startDate, trip.endDate)} · {tripDayCount(trip.startDate, trip.endDate)} jours</p><div>{participants.slice(0, 4).map((participant) => <V2Avatar key={participant.userId} name={displayName(participant.userId)} />)}{participants.length > 4 ? <b>+{participants.length - 4}</b> : null}</div></div>
+    </TravelCover>
+    {trip.coverAttribution ? <small className="travel-attribution detail">{trip.coverAttribution}</small> : null}
+
+    <section className="travel-summary-grid">
+      <Summary icon={Plane} label="Vols" value={String(flights.length)} />
+      <Summary icon={BedDouble} label="Logements" value={String(stays.length)} />
+      <Summary icon={MapPin} label="Activités" value={String(activities.length)} />
+      <Summary icon={Wallet} label="Dépensé" value={eur.format(spent)} />
+      <Summary icon={ClipboardCheck} label="Checklist" value={`${completedChecks}/${checks.length}`} />
+    </section>
+
+    <nav className="travel-inner-tabs" aria-label="Sections du voyage">{(["overview", "itinerary", "expenses", "checklist", "members"] as const).map((value) => <button key={value} aria-current={tab === value ? "page" : undefined} onClick={() => setTab(value)}>{value === "overview" ? "Aperçu" : value === "itinerary" ? "Itinéraire" : value === "expenses" ? "Dépenses" : value === "checklist" ? "Checklist" : "Membres"}</button>)}</nav>
+
+    {tab === "overview" ? <TripOverview targetBudget={trip.targetBudget} spent={spent} itinerary={itinerary} flights={flights} stays={stays} activities={activities} checks={checks} participants={participants.map((item) => item.userId)} displayName={displayName} onNavigate={setTab} /> : null}
+    {tab === "itinerary" ? <TripItineraryPanel trip={trip} /> : null}
+    {tab === "expenses" ? <TripExpensesPanel trip={trip} /> : null}
+    {tab === "checklist" ? <TripChecklistPanel trip={trip} /> : null}
+    {tab === "members" ? <TripMembersPanel trip={trip} /> : null}
+  </main>;
+}
+
+function Summary({ icon: Icon, label, value }: { icon: typeof Plane; label: string; value: string }) { return <article><span><Icon size={18} /></span><div><small>{label}</small><b>{value}</b></div></article>; }
+
+function TripOverview({ targetBudget, spent, itinerary, flights, stays, activities, checks, participants, displayName, onNavigate }: {
+  targetBudget: number; spent: number;
+  itinerary: ReturnType<typeof buildItinerary>; flights: Flight[];
+  stays: Accommodation[]; activities: TripActivity[];
+  checks: TripChecklistItem[]; participants: string[]; displayName: (id: string) => string;
+  onNavigate: (tab: Tab) => void;
+}) {
+  const nextFlight = flights[0];
+  const nextStay = stays[0];
+  const nextActivity = activities[0];
+  const complete = checks.filter((item) => item.isDone).length;
+  const checklistProgress = checks.length ? Math.round((complete / checks.length) * 100) : 0;
+  const budgetProgress = targetBudget > 0 ? Math.min((spent / targetBudget) * 100, 100) : 0;
+  return <div className="travel-overview-grid">
+    <section className="travel-panel travel-overview-lead"><header className="travel-section-head"><div><span className="travel-eyebrow">Prochaine étape</span><h2>{itinerary[0]?.title ?? "Itinéraire à imaginer"}</h2></div><MapPin size={22} /></header>{itinerary[0] ? <p>{itinerary[0].subtitle} · {shortDate(itinerary[0].date)}</p> : <p>Ajoutez votre premier vol, logement ou activité.</p>}<button onClick={() => onNavigate("itinerary")}>Voir l’itinéraire</button></section>
+    <section className="travel-overview-mini"><span><Plane size={19} /></span><div><small>Prochain vol</small><strong>{nextFlight ? `${nextFlight.fromCode} → ${nextFlight.toCode}` : "Aucun vol"}</strong><p>{nextFlight ? `${nextFlight.airline} ${nextFlight.flightNumber ?? ""} · ${timeLabel(nextFlight.departDate)}` : "Ajoutez vos billets"}</p></div></section>
+    <section className="travel-overview-mini"><span><BedDouble size={19} /></span><div><small>Logement</small><strong>{nextStay?.name ?? "À choisir"}</strong><p>{nextStay ? `${nextStay.city} · ${shortDate(nextStay.startDate)}` : "Ajoutez votre hébergement"}</p></div></section>
+    <section className="travel-overview-mini"><span><MapPin size={19} /></span><div><small>Prochaine activité</small><strong>{nextActivity?.title ?? "À planifier"}</strong><p>{nextActivity ? `${nextActivity.city} · ${shortDate(nextActivity.activityDate)}` : "Ajoutez une expérience"}</p></div></section>
+    <section className="travel-panel travel-overview-progress"><header><span>Budget</span><b>{eur.format(spent)} / {eur.format(targetBudget)}</b></header><div className="travel-progress"><i style={{ width: `${budgetProgress}%` }} /></div><button onClick={() => onNavigate("expenses")}><Receipt size={15} /> Gérer les dépenses</button></section>
+    <section className="travel-panel travel-overview-progress"><header><span>Checklist</span><b>{complete} / {checks.length}</b></header><div className="travel-progress"><i style={{ width: `${checklistProgress}%` }} /></div><button onClick={() => onNavigate("checklist")}><ClipboardCheck size={15} /> Continuer la préparation</button></section>
+    <section className="travel-panel travel-overview-members"><header className="travel-section-head"><div><span className="travel-eyebrow">Avec vous</span><h2>{participants.length} voyageur{participants.length > 1 ? "s" : ""}</h2></div><button onClick={() => onNavigate("members")}>Gérer</button></header><div>{participants.map((id) => <span key={id}><V2Avatar name={displayName(id)} /><small>{displayName(id)}</small></span>)}</div></section>
+  </div>;
+}

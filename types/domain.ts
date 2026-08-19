@@ -11,7 +11,8 @@ export type TripRole = "owner" | "editor" | "viewer";
 export type TripMemberStatus = "pending" | "accepted" | "declined";
 export type InvitationStatus = TripMemberStatus | "expired" | "revoked";
 export type NotificationKind =
-  | "trip_invitation" | "trip_member_joined" | "trip_expense"
+  | "trip_invitation" | "trip_member_joined" | "trip_expense" | "trip_task_assigned"
+  | "travel_friend_request" | "travel_friend_accepted"
   | "rent_due" | "business_task" | "system";
 
 export interface EntityMeta {
@@ -88,18 +89,24 @@ export interface Trip extends EntityMeta {
   title: string; destinationSummary: string; startDate: ISODate; endDate: ISODate;
   peopleCount: number; targetBudget: number; notes: string; isCompleted: boolean; createdAt: ISODate;
   coverImageUrl: string;
+  countryName?: string; countryCode?: string; coverImageProvider?: string; coverImageId?: string;
+  coverPhotographer?: string; coverPhotographerUrl?: string; coverAttribution?: string;
 }
 export interface Flight extends EntityMeta {
   tripId: UUID; airline: string; fromCode: string; toCode: string; departDate: ISODate;
   arriveDate: ISODate; price: number; bookingLink: string; attachmentNote: string; status: string;
+  airlineCode?: string; flightNumber?: string; departureTerminal?: string;
+  arrivalTerminal?: string; gate?: string; bookingReference?: string;
 }
 export interface Accommodation extends EntityMeta {
   tripId: UUID; name: string; city: string; startDate: ISODate; endDate: ISODate;
   price: number; bookingLink: string; attachmentNote: string; status: string;
+  checkInTime?: string; checkOutTime?: string; imageUrl?: string;
 }
 export interface TripActivity extends EntityMeta {
   tripId: UUID; title: string; city: string; activityDate: ISODate; price: number;
   link: string; status: string; note: string;
+  durationMinutes?: number; pricePerPerson?: boolean; category?: string;
 }
 export interface TripChecklistItem extends EntityMeta {
   tripId: UUID; title: string; category: string; isDone: boolean; assignedTo?: UUID;
@@ -138,6 +145,14 @@ export interface TripExpenseSplit extends EntityMeta {
   expenseId: UUID; tripId: UUID; amount: number; isSettled: boolean;
   settledAt?: ISODate; createdAt: ISODate;
 }
+export type TravelFriendRequestStatus = "pending" | "accepted" | "declined" | "cancelled";
+export interface TravelFriendRequest {
+  id: UUID; senderId: UUID; recipientId: UUID; status: TravelFriendRequestStatus;
+  createdAt: ISODate; respondedAt?: ISODate;
+}
+export interface TravelFriend {
+  id: UUID; userA: UUID; userB: UUID; createdAt: ISODate;
+}
 /** Annuaire minimal des co-voyageurs (jamais de données financières privées). */
 export interface DirectoryProfile { userId: UUID; username: string; avatarUrl: string; }
 
@@ -152,6 +167,7 @@ export interface AppData {
   tripActivities: TripActivity[]; tripChecklistItems: TripChecklistItem[]; attachments: Attachment[];
   userModules: UserModule[]; tripMembers: TripMember[]; tripInvitations: TripInvitation[];
   notifications: AppNotification[]; tripExpenses: TripExpense[]; tripExpenseSplits: TripExpenseSplit[];
+  travelFriendRequests: TravelFriendRequest[]; travelFriends: TravelFriend[];
 }
 
 export type AppDataKey = keyof AppData;

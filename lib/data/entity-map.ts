@@ -30,13 +30,17 @@ export const entityTables: { [K in AppDataKey]: string } = {
   notifications: "notifications",
   tripExpenses: "trip_expenses",
   tripExpenseSplits: "trip_expense_splits",
+  travelFriendRequests: "travel_friend_requests",
+  travelFriends: "travel_friends",
 };
 
 /**
  * Tables V2 pilotées par des RPC SECURITY DEFINER ou par des helpers dédiés.
  * Elles sont chargées par `loadAll` mais ne doivent pas passer par `create()`.
  */
-export const rpcManagedKeys: AppDataKey[] = ["tripMembers", "tripInvitations", "notifications"];
+export const rpcManagedKeys: AppDataKey[] = [
+  "tripMembers", "tripInvitations", "notifications", "travelFriendRequests", "travelFriends",
+];
 
 export const entityKeys = Object.keys(entityTables) as AppDataKey[];
 /**

@@ -46,6 +46,7 @@ const hoisted = vi.hoisted(() => {
     tripActivities: [], tripChecklistItems: [], attachments: [],
     userModules: [], tripMembers: [], tripInvitations: [],
     notifications: [], tripExpenses: [], tripExpenseSplits: [],
+    travelFriendRequests: [], travelFriends: [],
   }) as AppData;
 
   const loadAllMock = vi.fn(async () => emptyAppData());

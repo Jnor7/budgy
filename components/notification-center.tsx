@@ -1,7 +1,7 @@
 "use client";
 
 import { Bell, BellOff, Check, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Sheet } from "@/components/ui/modal";
 import { V2Icon } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
@@ -13,7 +13,7 @@ import { shortDate } from "@/lib/format";
  * écrite exclusivement par les fonctions SECURITY DEFINER.
  */
 export function NotificationCenter() {
-  const { data, respondInvitation, markNotificationRead } = useBudgyData();
+  const { data, respondInvitation, respondTravelFriendRequest, markNotificationRead } = useBudgyData();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState("");
@@ -36,6 +36,13 @@ export function NotificationCenter() {
     }
   };
 
+  const answerFriend = async (notificationId: string, requestId: string, accept: boolean) => {
+    setBusy(notificationId); setError("");
+    try { await respondTravelFriendRequest(requestId, accept); }
+    catch { setError("La réponse n'a pas pu être envoyée. Réessayez dans un instant."); }
+    finally { setBusy(undefined); }
+  };
+
   return (
     <>
       <button className="v2-bell" onClick={() => setOpen(true)} aria-label={`Notifications${unread > 0 ? ` (${unread} non lues)` : ""}`}>
@@ -54,13 +61,20 @@ export function NotificationCenter() {
             </div>
           ) : null}
 
-          {notifications.map((notification) => {
+          {notifications.map((notification, index) => {
             const invitationId = typeof notification.payload?.invitation_id === "string"
               ? notification.payload.invitation_id
               : undefined;
+            const friendRequestId = typeof notification.payload?.friend_request_id === "string" ? notification.payload.friend_request_id : undefined;
             const pending = notification.kind === "trip_invitation" && invitationId && !notification.readAt;
+            const pendingFriend = notification.kind === "travel_friend_request" && friendRequestId && !notification.readAt;
+            const day = new Date(notification.createdAt).toDateString();
+            const previousDay = index > 0 ? new Date(notifications[index - 1]!.createdAt).toDateString() : "";
+            const dayLabel = day === new Date().toDateString() ? "Aujourd’hui" : shortDate(notification.createdAt);
             return (
-              <div className="v2-card v2-card-tight" key={notification.id} style={{ opacity: notification.readAt ? .62 : 1 }}>
+              <Fragment key={notification.id}>
+              {day !== previousDay ? <h3 className="notification-day">{dayLabel}</h3> : null}
+              <div className="v2-card v2-card-tight" style={{ opacity: notification.readAt ? .62 : 1 }}>
                 <div className="row" style={{ alignItems: "flex-start" }}>
                   <V2Icon icon={Bell} tone={notification.kind === "trip_invitation" ? "purple" : "cyan"} />
                   <div className="list-main">
@@ -86,6 +100,11 @@ export function NotificationCenter() {
                       <X size={16} /> Refuser
                     </button>
                   </div>
+                ) : pendingFriend ? (
+                  <div className="grid-2" style={{ marginTop: 12 }}>
+                    <button className="button button-primary" disabled={busy === notification.id} onClick={() => void answerFriend(notification.id, friendRequestId, true)}><Check size={16} /> Accepter</button>
+                    <button className="button button-danger" disabled={busy === notification.id} onClick={() => void answerFriend(notification.id, friendRequestId, false)}><X size={16} /> Refuser</button>
+                  </div>
                 ) : !notification.readAt ? (
                   <button
                     className="button button-ghost"
@@ -95,7 +114,7 @@ export function NotificationCenter() {
                     Marquer comme lu
                   </button>
                 ) : null}
-              </div>
+              </div></Fragment>
             );
           })}
         </div>

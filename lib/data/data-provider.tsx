@@ -7,6 +7,7 @@ import { SupabaseRepository, type RemoteImportResult } from "@/lib/data/supabase
 import { enabledModuleKeys, MODULE_KEYS } from "@/lib/modules/registry";
 import type { AppData, AppDataKey, AppEntity, DirectoryProfile, ModuleKey, Profile } from "@/types/domain";
 import { demoData, emptyData, LOCAL_USER_ID } from "@/lib/data/seed";
+import type { Airport } from "@/lib/airports/airports";
 
 const STORAGE_KEY = "budgy.local-data.v1";
 
@@ -41,6 +42,10 @@ interface DataContextValue {
   saveProfile: (patch: Partial<Profile>) => Promise<void>;
   inviteToTrip: (tripId: string, options: { handle?: string; email?: string; role?: "editor" | "viewer" }) => Promise<Record<string, unknown>>;
   respondInvitation: (invitationId: string, accept: boolean) => Promise<void>;
+  sendTravelFriendRequest: (handle: string) => Promise<Record<string, unknown>>;
+  respondTravelFriendRequest: (requestId: string, accept: boolean) => Promise<void>;
+  removeTravelFriend: (friendId: string) => Promise<void>;
+  searchAirportDirectory: (query: string) => Promise<Airport[]>;
   markNotificationRead: (id: string) => Promise<void>;
   /** Alias explicite de `!localMode`, pour ne jamais confondre "configuré" et "prêt". */
   supabaseConfigured: boolean;
@@ -55,6 +60,8 @@ interface DataContextValue {
 
 const DataContext = createContext<DataContextValue | null>(null);
 const cloneDemo = () => structuredClone(demoData);
+/** Ajoute les collections introduites après V1 sans demander de réimport local. */
+const parseStoredData = (raw: string): AppData => ({ ...structuredClone(emptyData), ...JSON.parse(raw) as Partial<AppData> });
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppData>(emptyData);
@@ -98,6 +105,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     let unsubscribe: (() => void) | undefined;
+    let unsubscribeRealtime: (() => void) | undefined;
+    let realtimeTimer: number | undefined;
+
+    const queueTravelReload = () => {
+      if (realtimeTimer) window.clearTimeout(realtimeTimer);
+      realtimeTimer = window.setTimeout(() => { if (!cancelled) void reload(); }, 180);
+    };
 
     /** Crée le repository, charge les données et bascule `repositoryReady` de façon réactive. */
     const attachRepository = async (client: ReturnType<typeof getSupabaseBrowserClient>, uid: string) => {
@@ -113,6 +127,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setSyncError("");
         setSyncStatus("idle");
         if (!cancelled) setRepositoryReady(true);
+        unsubscribeRealtime?.();
+        if (typeof client.channel !== "function") return;
+        const travelChannel = client.channel(`budgy-travel-${uid}`)
+          .on("postgres_changes", { event: "*", schema: "public", table: "trips" }, queueTravelReload)
+          .on("postgres_changes", { event: "*", schema: "public", table: "flights" }, queueTravelReload)
+          .on("postgres_changes", { event: "*", schema: "public", table: "accommodations" }, queueTravelReload)
+          .on("postgres_changes", { event: "*", schema: "public", table: "trip_activities" }, queueTravelReload)
+          .on("postgres_changes", { event: "*", schema: "public", table: "trip_checklist_items" }, queueTravelReload)
+          .on("postgres_changes", { event: "*", schema: "public", table: "trip_members" }, queueTravelReload)
+          .on("postgres_changes", { event: "*", schema: "public", table: "trip_expenses" }, queueTravelReload)
+          .on("postgres_changes", { event: "*", schema: "public", table: "trip_expense_splits" }, queueTravelReload)
+          .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, queueTravelReload)
+          .subscribe();
+        unsubscribeRealtime = () => { void client.removeChannel(travelChannel); };
       } catch (reason) {
         repositoryRef.current = null;
         if (!cancelled) setRepositoryReady(false);
@@ -123,6 +151,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     /** Session perdue (déconnexion) : on revient à un état "configuré mais non connecté". */
     const detachRepository = () => {
       repositoryRef.current = null;
+      unsubscribeRealtime?.();
+      unsubscribeRealtime = undefined;
       setRepositoryReady(false);
       setProfile(null);
       setDirectory([]);
@@ -131,7 +161,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const initialize = async () => {
       if (localMode) {
         const raw = window.localStorage.getItem(STORAGE_KEY);
-        try { setData(raw ? JSON.parse(raw) as AppData : cloneDemo()); }
+        try { setData(raw ? parseStoredData(raw) : cloneDemo()); }
         catch { setData(cloneDemo()); }
         setSyncError(hasInvalidSupabaseMode ? "Le mode Supabase est demandé mais les variables .env sont absentes." : "");
         setSyncStatus(hasInvalidSupabaseMode ? "error" : "idle");
@@ -176,8 +206,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     };
 
     void initialize();
-    return () => { cancelled = true; unsubscribe?.(); };
-  }, [localMode, reportError]);
+    return () => { cancelled = true; unsubscribe?.(); unsubscribeRealtime?.(); if (realtimeTimer) window.clearTimeout(realtimeTimer); };
+  }, [localMode, reload, reportError]);
 
   useEffect(() => {
     if (ready && localMode) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -334,6 +364,33 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     await reload();
   }, [reload]);
 
+  const sendTravelFriendRequest = useCallback(async (handle: string) => {
+    const repository = repositoryRef.current;
+    if (!repository) throw new Error("Les amis de voyage nécessitent le mode Supabase.");
+    const result = await repository.sendTravelFriendRequest(handle);
+    await reload();
+    return result;
+  }, [reload]);
+
+  const respondTravelFriendRequest = useCallback(async (requestId: string, accept: boolean) => {
+    const repository = repositoryRef.current;
+    if (!repository) throw new Error("Les amis de voyage nécessitent le mode Supabase.");
+    await repository.respondTravelFriendRequest(requestId, accept);
+    await reload();
+  }, [reload]);
+
+  const removeTravelFriend = useCallback(async (friendId: string) => {
+    const repository = repositoryRef.current;
+    if (!repository) throw new Error("Les amis de voyage nécessitent le mode Supabase.");
+    await repository.removeTravelFriend(friendId);
+    await reload();
+  }, [reload]);
+
+  const searchAirportDirectory = useCallback(async (query: string) => {
+    if (query.trim().length < 2) return [];
+    return repositoryRef.current?.searchAirports(query).catch(() => []) ?? [];
+  }, []);
+
   const markNotificationRead = useCallback(async (id: string) => {
     const readAt = new Date().toISOString();
     setData((current) => ({
@@ -364,12 +421,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     saveProfile,
     inviteToTrip,
     respondInvitation,
+    sendTravelFriendRequest,
+    respondTravelFriendRequest,
+    removeTravelFriend,
+    searchAirportDirectory,
     markNotificationRead,
     supabaseConfigured,
     repositoryReady,
   }), [
     create, data, directory, displayName, importArchive, inviteToTrip, localMode, markNotificationRead,
     modules, modulesConfigured, profile, ready, reload, remove, repositoryReady, respondInvitation, saveProfile,
+    respondTravelFriendRequest, removeTravelFriend, searchAirportDirectory, sendTravelFriendRequest,
     setModules, supabaseConfigured, syncError, syncStatus, update, userId,
   ]);
 
