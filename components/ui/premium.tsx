@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Calendar, Cloud, CloudOff, LoaderCircle, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Calendar, Clock3, Cloud, CloudOff, LoaderCircle, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
@@ -80,6 +80,32 @@ export function DateField({ value, onChange, id }: { value: string; onChange: (v
     <div className="date-field">
       <Calendar size={16} className="date-field-icon" aria-hidden="true" />
       <input id={id} className="input" type="date" value={value} onChange={(event) => onChange(event.target.value)} />
+    </div>
+  );
+}
+
+/**
+ * Champ date/heure mobile robuste. Deux contrôles natifs courts remplacent le
+ * rendu localisé et non contraignable de `datetime-local` sur Safari iOS.
+ */
+export function DateTimeField({ value, onChange, id, timeLabel = "Heure" }: {
+  value: string; onChange: (value: string) => void; id?: string; timeLabel?: string;
+}) {
+  const date = value.slice(0, 10);
+  const time = value.slice(11, 16) || "00:00";
+  const emit = (nextDate: string, nextTime: string) => {
+    if (nextDate && nextTime) onChange(`${nextDate}T${nextTime}`);
+  };
+  return (
+    <div className="date-time-field">
+      <div className="date-field">
+        <Calendar size={16} className="date-field-icon" aria-hidden="true" />
+        <input id={id} className="input" type="date" value={date} onChange={(event) => emit(event.target.value, time)} />
+      </div>
+      <div className="time-field">
+        <Clock3 size={16} className="time-field-icon" aria-hidden="true" />
+        <input id={id ? `${id}-time` : undefined} aria-label={timeLabel} className="input" type="time" value={time} onChange={(event) => emit(date, event.target.value)} />
+      </div>
     </div>
   );
 }

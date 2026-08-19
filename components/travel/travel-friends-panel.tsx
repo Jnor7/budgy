@@ -7,6 +7,7 @@ import { FormModal } from "@/components/ui/modal";
 import { V2Avatar, V2Empty } from "@/components/ui/v2";
 import { TravelProfileSearch } from "@/components/travel/travel-profile-search";
 import { useBudgyData } from "@/lib/data/data-provider";
+import type { DirectoryProfile } from "@/types/domain";
 
 export function TravelFriendsPanel() {
   const {
@@ -15,6 +16,8 @@ export function TravelFriendsPanel() {
   } = useBudgyData();
   const [open, setOpen] = useState(false);
   const [handle, setHandle] = useState("");
+  const [selectedProfile, setSelectedProfile] = useState<DirectoryProfile>();
+  const [confirmRequest, setConfirmRequest] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState<string>();
   const { showToast } = useToast();
@@ -22,23 +25,23 @@ export function TravelFriendsPanel() {
   const incoming = data.travelFriendRequests.filter((request) => request.recipientId === userId && request.status === "pending");
   const outgoing = data.travelFriendRequests.filter((request) => request.senderId === userId && request.status === "pending");
 
-  const close = () => { setHandle(""); setOpen(false); };
+  const close = () => { setHandle(""); setSelectedProfile(undefined); setConfirmRequest(false); setOpen(false); };
   const statusFor = (candidateId: string) => {
-    if (friends.some((friend) => friend.userA === candidateId || friend.userB === candidateId)) return "Déjà dans vos amis";
+    if (friends.some((friend) => friend.userA === candidateId || friend.userB === candidateId)) return "Déjà ami";
     if (outgoing.some((request) => request.recipientId === candidateId)) return "Demande envoyée";
     return undefined;
   };
 
   const addFriend = async () => {
-    if (!handle.trim() || busy) return;
+    if (!selectedProfile || busy) return;
     setBusy(true);
     try {
-      await sendTravelFriendRequest(handle.trim());
-      showToast({ title: "Demande envoyée", detail: `À ${handle.trim()}`, tone: "success" });
-      close();
+      await sendTravelFriendRequest(selectedProfile.username);
+      showToast({ title: "Demande envoyée", detail: `À ${selectedProfile.username}`, tone: "success" });
+      setSelectedProfile(undefined);
     } catch {
       showToast({ title: "Demande impossible", detail: localMode ? "Connectez Supabase pour ajouter un ami." : "Vérifiez le pseudo ou une demande existante.", tone: "error" });
-    } finally { setBusy(false); }
+    } finally { setBusy(false); setConfirmRequest(false); }
   };
 
   const answer = async (id: string, accept: boolean) => {
@@ -69,9 +72,10 @@ export function TravelFriendsPanel() {
         return <div className="travel-friend-row" key={friend.id}><V2Avatar name={displayName(friendId)} url={avatarUrl(friendId)} /><div><strong>{displayName(friendId)}</strong><span>Ami de voyage</span></div><button aria-label={`Supprimer ${displayName(friendId)}`} onClick={() => setPendingRemoval(friend.id)}><UserMinus size={17} /></button></div>;
       })}
       {outgoing.length > 0 ? <p className="travel-hint">{outgoing.length} demande{outgoing.length > 1 ? "s" : ""} en attente.</p> : null}
-      <FormModal open={open} title="Ajouter un ami de voyage" submitLabel={busy ? "Envoi…" : "Envoyer la demande"} disableSubmit={handle.trim().length < 2 || busy || Boolean(data.travelFriends.some((friend) => friend.userA === userId ? displayName(friend.userB) === handle : displayName(friend.userA) === handle))} onClose={close} onSubmit={() => void addFriend()} icon={UserPlus} tone="cyan">
-        <div className="form-grid"><p className="travel-form-intro">Recherche privée à partir de deux caractères, limitée aux profils publics nécessaires.</p><TravelProfileSearch value={handle} onChange={setHandle} onSelect={(candidate) => setHandle(candidate.username)} search={searchTravelProfiles} statusFor={(candidate) => statusFor(candidate.userId)} /></div>
+      <FormModal open={open} title="Ajouter un ami de voyage" submitLabel={selectedProfile ? "Confirmer la demande" : "Sélectionner un profil"} disableSubmit={!selectedProfile || busy} closeOnSubmit={false} onClose={close} onSubmit={() => setConfirmRequest(Boolean(selectedProfile))} icon={UserPlus} tone="cyan">
+        <div className="form-grid"><p className="travel-form-intro">Recherche privée à partir de deux caractères, limitée aux profils publics nécessaires.</p><TravelProfileSearch value={handle} onChange={(value) => { setHandle(value); setSelectedProfile(undefined); setConfirmRequest(false); }} onSelect={(candidate) => { setHandle(candidate.username); setSelectedProfile(candidate); setConfirmRequest(true); }} search={searchTravelProfiles} statusFor={(candidate) => statusFor(candidate.userId)} /></div>
       </FormModal>
+      <ConfirmDialog open={confirmRequest && Boolean(selectedProfile)} title={selectedProfile ? `Ajouter ${selectedProfile.username} à vos amis de voyage ?` : "Ajouter cet ami de voyage ?"} detail="Une demande lui sera envoyée. Rien ne sera ajouté sans son accord." content={selectedProfile ? <div className="travel-friend-confirm-profile"><V2Avatar name={selectedProfile.username} url={selectedProfile.avatarUrl} /><strong>{selectedProfile.username}</strong></div> : undefined} confirmLabel={busy ? "Envoi…" : "Envoyer la demande"} confirmTone="primary" onCancel={() => setConfirmRequest(false)} onConfirm={() => void addFriend()} />
       <ConfirmDialog open={Boolean(pendingRemoval)} title="Supprimer cet ami de voyage ?" detail="Vous pourrez lui renvoyer une demande plus tard. Les voyages déjà partagés restent inchangés." confirmLabel="Supprimer" onCancel={() => setPendingRemoval(undefined)} onConfirm={() => { if (pendingRemoval) void removeTravelFriend(pendingRemoval); setPendingRemoval(undefined); }} />
     </section>
   );

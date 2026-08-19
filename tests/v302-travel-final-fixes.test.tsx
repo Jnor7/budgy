@@ -71,7 +71,12 @@ describe("Budgy V3.0.2 — Unsplash", () => {
     const body = await response.json();
 
     expect(body).toMatchObject({ provider: "fallback", diagnostic: { query: "Tokyo Japan travel", errorType: "configuration_missing", resultsCount: 0 } });
-    expect(logger).toHaveBeenCalledWith("[travel-image]", expect.objectContaining({ provider: "unsplash", tripId: "t1", errorType: "configuration_missing" }));
+    expect(logger).toHaveBeenCalledWith("[travel-image]", {
+      provider: "unsplash",
+      status: 0,
+      code: "configuration_missing",
+      message: "UNSPLASH_ACCESS_KEY absente du runtime.",
+    });
   });
 
   it("rend le statut HTTP Unsplash identifiable", async () => {
@@ -163,7 +168,7 @@ describe("Budgy V3.0.2 — dates et catégorie", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
     const css = readFileSync(join(process.cwd(), "app/globals.css"), "utf8");
     expect(css).toContain(".form-modal .travel-datetime-row { grid-template-columns:minmax(0,1fr); }");
-    expect(css).toContain(".form-modal .form-grid,.form-modal .form-row,.form-modal .form-section,.form-modal .field,.form-modal .date-field { width:100%;min-width:0;max-width:100%; }");
+    expect(css).toContain(".form-modal .form-grid,.form-modal .form-row,.form-modal .form-section,.form-modal .field,.form-modal .date-field,.form-modal .date-time-field,.form-modal .time-field { width:100%;min-width:0;max-width:100%; }");
   });
 
   it("affiche Autre comme placeholder et n'applique le fallback qu'au submit", () => {

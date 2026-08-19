@@ -635,6 +635,12 @@ input[type=number] { -moz-appearance:textfield; }
 .date-field input[type=date] { width:100%; padding-left:38px; color-scheme:light; }
 .date-field input[type=date]::-webkit-calendar-picker-indicator { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
 .date-field input[type=date]::-webkit-datetime-edit { color:var(--text); }
+.date-time-field { width:100%;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(96px,.45fr);gap:8px; }
+.date-time-field>* { min-width:0;max-width:100%;overflow:hidden; }
+.time-field { position:relative;display:flex;align-items:center; }
+.time-field-icon { position:absolute;z-index:1;left:13px;color:var(--v2-muted);pointer-events:none; }
+.time-field input[type=time] { width:100%;min-width:0;max-width:100%;padding-left:38px;color-scheme:light; }
+.time-field input[type=time]::-webkit-calendar-picker-indicator { position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer; }
 
 /* --- Bouton de réinitialisation discret (paiement) ------------------------- */
 .button-reset-inline {
@@ -733,8 +739,9 @@ input[type=number] { -moz-appearance:textfield; }
 .form-modal-cta { min-height:52px;border:1px solid rgba(255,255,255,.16);border-radius:17px;font-size:14px;font-weight:760;letter-spacing:-.005em;box-shadow:0 10px 24px color-mix(in srgb,var(--modal-accent) 27%,transparent),inset 0 1px 0 rgba(255,255,255,.22); }
 .form-modal .form-grid,.form-modal .transaction-form { gap:12px; }
 .form-modal .form-row { gap:10px;align-items:start; }
-.form-modal .form-grid,.form-modal .form-row,.form-modal .form-section,.form-modal .field,.form-modal .date-field { width:100%;min-width:0;max-width:100%; }
+.form-modal .form-grid,.form-modal .form-row,.form-modal .form-section,.form-modal .field,.form-modal .date-field,.form-modal .date-time-field,.form-modal .time-field { width:100%;min-width:0;max-width:100%; }
 .form-modal .form-row>* { min-width:0;max-width:100%; }
+.form-modal .field>* { min-width:0;max-width:100%; }
 .form-modal input[type=date],.form-modal input[type=time],.form-modal input[type=datetime-local] { width:100%;min-width:0;max-width:100%;overflow:hidden; }
 .form-modal .form-section { padding:13px;border-color:color-mix(in srgb,var(--modal-accent) 17%,#e8e8ee);border-radius:17px;background:#fff;box-shadow:0 5px 18px rgba(28,34,52,.035),inset 0 1px 0 #fff; }
 .form-modal .form-section legend { max-width:calc(100% - 18px);padding:0 7px;color:var(--modal-accent);background:#fff;font-size:10.5px;font-weight:790;line-height:1.25;letter-spacing:.065em; }
@@ -757,6 +764,10 @@ input[type=number] { -moz-appearance:textfield; }
 .form-modal .date-field input[type=date] { height:48px;padding:0 10px 0 38px;font-size:14px;font-weight:650;line-height:48px;letter-spacing:-.01em;font-variant-numeric:tabular-nums; }
 .form-modal .date-field input[type=date]::-webkit-datetime-edit { display:flex;align-items:center;height:46px;padding:0; }
 .form-modal .date-field input[type=date]::-webkit-date-and-time-value { min-height:46px;display:flex;align-items:center;text-align:left; }
+.form-modal .time-field { min-height:48px; }
+.form-modal .time-field-icon { left:12px;width:17px;height:17px;color:var(--modal-accent); }
+.form-modal .time-field input[type=time] { height:48px;padding:0 10px 0 38px;font-size:14px;font-weight:650;line-height:48px;font-variant-numeric:tabular-nums; }
+.form-modal .time-field input[type=time]::-webkit-datetime-edit,.form-modal .time-field input[type=time]::-webkit-date-and-time-value { min-width:0;max-width:100%;overflow:hidden;text-align:left; }
 .form-modal .animated-segmented { min-height:48px;padding:4px;border-color:#e1e2e8;border-radius:15px;background:#f6f6f8; }
 .form-modal .animated-segmented>i { border-color:color-mix(in srgb,var(--modal-accent) 15%,#e7e7ec);background:#fff;box-shadow:0 4px 13px rgba(22,29,48,.085); }
 .form-modal .animated-segmented button { min-height:38px;font-size:12.5px;font-weight:720; }
@@ -798,7 +809,11 @@ input[type=number] { -moz-appearance:textfield; }
   .form-modal input,.form-modal textarea,.form-modal select,.form-modal .input,.form-modal .select,.form-modal .textarea,.form-modal .date-field input[type=date],.form-modal .amount-input-wrap input { font-size:16px!important; }
   .form-modal input[type=date],.form-modal input[type=time],.form-modal input[type=datetime-local] { width:100%;min-width:0;max-width:100%; }
   .form-modal .travel-datetime-row { grid-template-columns:minmax(0,1fr); }
+  .form-modal .date-time-field { grid-template-columns:minmax(0,1fr) minmax(96px,.45fr); }
   .form-modal input[type=date]::-webkit-datetime-edit,.form-modal input[type=time]::-webkit-datetime-edit,.form-modal input[type=datetime-local]::-webkit-datetime-edit { min-width:0;max-width:100%;overflow:hidden; }
+}
+@media (max-width:390px) {
+  .form-modal .form-row:has(> .field > .date-field) { grid-template-columns:minmax(0,1fr); }
 }
 
 /* ============================================================
@@ -837,6 +852,8 @@ input[type=number] { -moz-appearance:textfield; }
 .travel-profile-search-input { position:relative;display:block;min-width:0; }.travel-profile-search-input>svg { position:absolute;z-index:1;left:12px;top:50%;transform:translateY(-50%);color:#0a96a5; }.travel-profile-search-input>.input { padding-left:38px; }
 .travel-profile-search-state { min-height:19px;display:flex;align-items:center;gap:6px;color:#788d96;font-size:10.5px; }.travel-profile-search-state .is-spinning { color:#0a9ba8;animation:spin .8s linear infinite; }
 .travel-profile-results { display:grid;gap:6px; }.travel-profile-results>button { width:100%;min-height:54px;padding:7px 9px;border:1px solid #dcebed;border-radius:14px;display:flex;align-items:center;gap:9px;color:#173b4b;background:#f8fcfc;text-align:left; }.travel-profile-results>button:not(:disabled):active { border-color:#78d1d6;background:#eefafa; }.travel-profile-results>button:disabled { cursor:default;opacity:.72; }.travel-profile-results>button>span:nth-child(2) { min-width:0;flex:1;display:grid; }.travel-profile-results strong { overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px; }.travel-profile-results small { margin-top:2px;color:#78909a;font-size:9px; }.travel-profile-results em { color:#087f8d;font-size:9px;font-style:normal;font-weight:780; }
+.travel-friend-confirm-profile { margin:14px 0 2px;padding:10px 12px;border:1px solid #d8ecee;border-radius:15px;display:flex;align-items:center;justify-content:center;gap:10px;color:#173b4b;background:#f5fbfb; }
+.travel-friend-confirm-profile strong { max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px; }
 .travel-person-choices { display:flex;gap:7px;overflow-x:auto; }.travel-person-choices button { min-width:75px;padding:8px;border:1px solid #e1e7e9;border-radius:13px;display:grid;justify-items:center;gap:4px;background:#fff;color:#596d76;font-size:10px; }.travel-person-choices button.active { color:#087f8d;border-color:#7fd7dc;background:#eefafa; }.travel-participant-checks { display:grid;gap:6px; }.travel-participant-checks button { min-height:38px;padding:7px 9px;border:1px solid #e2e7e9;border-radius:11px;display:flex;align-items:center;gap:8px;color:#5f737c;background:#fff;text-align:left;font-size:11px;font-weight:700; }.travel-participant-checks .travel-split-check { width:19px;height:19px;border:1.5px solid #bdcbd0;border-radius:7px;display:grid;place-items:center; }.travel-participant-checks button.active { color:#087f8d;border-color:#a4dfe2;background:#f2fbfb; }.travel-participant-checks button.active>.travel-split-check { color:#fff;border-color:#0ba5aa;background:#0ba5aa; }
 .destination-suggestions,.airline-suggestions { display:grid;gap:5px;margin:7px 0; }.destination-suggestions button,.airline-suggestions button { min-height:46px;padding:7px 9px;border:1px solid #dcebed;border-radius:12px;display:flex;align-items:center;gap:8px;color:#166777;background:#f2fbfb;text-align:left; }.destination-suggestions button span { display:grid; }.destination-suggestions b { font-size:11px; }.destination-suggestions small { color:#7a969e;font-size:9px; }.airline-suggestions button { min-height:36px;font-size:10px; }.airline-suggestions b { width:28px;font-size:12px; }.travel-number-field { position:relative; }.travel-number-field svg { position:absolute;z-index:1;left:11px;top:16px;color:#1699a9; }.travel-number-field .input { padding-left:35px; }.travel-cover-refresh { min-height:40px;padding:8px 11px;border:1px solid #ccebed;border-radius:12px;color:#087f90;background:#effafa;font-size:11px;font-weight:780; }
 

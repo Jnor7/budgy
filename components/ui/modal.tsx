@@ -74,10 +74,10 @@ export function Sheet({
  */
 export function FormModal({
   open, title, onClose, onSubmit, submitLabel = "Enregistrer", children,
-  disableSubmit = false, icon: Icon, tone = "purple",
+  disableSubmit = false, closeOnSubmit = true, icon: Icon, tone = "purple",
 }: {
   open: boolean; title: string; onClose: () => void; onSubmit: () => void;
-  submitLabel?: string; children: ReactNode; disableSubmit?: boolean;
+  submitLabel?: string; children: ReactNode; disableSubmit?: boolean; closeOnSubmit?: boolean;
   icon: LucideIcon; tone?: Tone;
 }) {
   const titleId = useId();
@@ -157,6 +157,10 @@ export function FormModal({
   };
 
   const submit = () => {
+    if (!closeOnSubmit) {
+      onSubmitRef.current();
+      return;
+    }
     dirtyRef.current = false;
     setDirty(false);
     closeWith(() => onSubmitRef.current());

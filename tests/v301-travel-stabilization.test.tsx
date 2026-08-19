@@ -89,7 +89,9 @@ describe("Budgy V3.0.1 — stabilisation Travel", () => {
     const flightRender = render(<ToastProvider><TripItineraryPanel trip={trip} initialKind="flight" /></ToastProvider>);
     const dateRow = document.querySelector(".travel-datetime-row");
     expect(dateRow).toBeTruthy();
-    expect(dateRow?.querySelectorAll('input[type="datetime-local"]')).toHaveLength(2);
+    expect(dateRow?.querySelectorAll('input[type="date"]')).toHaveLength(2);
+    expect(dateRow?.querySelectorAll('input[type="time"]')).toHaveLength(2);
+    expect(dateRow?.querySelector('input[type="datetime-local"]')).toBeNull();
 
     flightRender.unmount();
     render(<ToastProvider><TripItineraryPanel trip={trip} initialKind="stay" /></ToastProvider>);
