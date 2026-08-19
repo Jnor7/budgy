@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BUSINESS_TEMPLATES, businessTemplate, enabledModuleKeys, hasAdvancedTrading,
-  hasConfiguredModules, isModuleEnabled, MODULE_DEFINITIONS, suggestedModules,
+  hasConfiguredModules, isModuleEnabled, MODULE_DEFINITIONS, modulesForHistoricalData, suggestedModules,
 } from "@/lib/modules/registry";
 import { emptyData } from "@/lib/data/seed";
 import type { AppData, UserModule } from "@/types/domain";
@@ -55,6 +55,25 @@ describe("registre des modules", () => {
 
   it("suggestedModules retombe sur Budget si le compte est totalement vide", () => {
     expect(suggestedModules(emptyData)).toEqual(["budget"]);
+  });
+
+  it("active Businesses pour chacune des quatre collections Dubaï", () => {
+    for (const key of ["dubaiParts", "dubaiSales", "dubaiExpenses", "dubaiCashMovements"] as const) {
+      const data = structuredClone(emptyData);
+      (data[key] as unknown[]).push({ id: key });
+      expect(modulesForHistoricalData(data)).toContain("businesses");
+    }
+  });
+
+  it("active Rentals, Trips, Budget et Subscriptions depuis les données importées", () => {
+    const rentals = structuredClone(emptyData); rentals.tenants.push({ id: "tenant" } as never);
+    const trips = structuredClone(emptyData); trips.trips.push({ id: "trip" } as never);
+    const budget = structuredClone(emptyData); budget.budgetEntries.push({ id: "budget" } as never);
+    const subscriptions = structuredClone(emptyData); subscriptions.subscriptions.push({ id: "subscription" } as never);
+    expect(modulesForHistoricalData(rentals)).toEqual(["rentals"]);
+    expect(modulesForHistoricalData(trips)).toEqual(["trips"]);
+    expect(modulesForHistoricalData(budget)).toEqual(["budget"]);
+    expect(modulesForHistoricalData(subscriptions)).toEqual(["subscriptions"]);
   });
 });
 

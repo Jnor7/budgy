@@ -94,13 +94,22 @@ export const hasConfiguredModules = (modules: UserModule[]) => modules.length > 
  * Suggestion de configuration pour un compte V1 qui découvre la V2 (§67).
  * Basée uniquement sur les données réellement présentes, jamais sur un pseudo.
  */
-export function suggestedModules(data: AppData): ModuleKey[] {
+export function modulesForHistoricalData(data: AppData): ModuleKey[] {
   const suggestions: ModuleKey[] = [];
   if (data.budgetEntries.length > 0) suggestions.push("budget");
   if (data.subscriptions.length > 0) suggestions.push("subscriptions");
-  if (data.trips.length > 0) suggestions.push("trips");
-  if (data.tenants.length > 0) suggestions.push("rentals");
-  if (data.businesses.length > 0 || data.dubaiParts.length > 0) suggestions.push("businesses");
+  if (data.trips.length > 0 || data.flights.length > 0 || data.accommodations.length > 0 || data.tripActivities.length > 0 || data.tripChecklistItems.length > 0) suggestions.push("trips");
+  if (data.tenants.length > 0 || data.rentPayments.length > 0 || data.tenantDebts.length > 0) suggestions.push("rentals");
+  if (
+    data.businesses.length > 0 || data.businessContacts.length > 0 || data.businessItems.length > 0 ||
+    data.businessTransactions.length > 0 || data.businessBookings.length > 0 || data.businessTasks.length > 0 ||
+    data.dubaiParts.length > 0 || data.dubaiSales.length > 0 || data.dubaiExpenses.length > 0 || data.dubaiCashMovements.length > 0
+  ) suggestions.push("businesses");
+  return suggestions;
+}
+
+export function suggestedModules(data: AppData): ModuleKey[] {
+  const suggestions = modulesForHistoricalData(data);
   return suggestions.length > 0 ? suggestions : ["budget"];
 }
 

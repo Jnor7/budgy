@@ -27,20 +27,20 @@ sur les policies RLS voyages (étape 2).
 
 ## 2. Migrations Supabase
 
-Trois nouveaux fichiers, à appliquer **dans cet ordre** (l'ordre alphabétique des noms
+Quatre nouveaux fichiers, à appliquer **dans cet ordre** (l'ordre alphabétique des noms
 de fichiers respecte déjà les dépendances) :
 
 ```
 supabase/migrations/202608190001_v2_user_modules.sql
 supabase/migrations/202608190002_v2_trip_collaboration.sql
 supabase/migrations/202608190003_v2_trip_expenses.sql
+supabase/migrations/202608190004_historical_import_mapping_modules.sql
 ```
 
 Application :
 
 ```bash
 supabase db push
-# ou, en SQL direct dans l'éditeur Supabase, coller chaque fichier dans l'ordre ci-dessus.
 ```
 
 **Ce que fait chaque migration :**
@@ -55,6 +55,9 @@ supabase db push
    N'importe aucune autre table.
 3. `202608190003` — crée `trip_expenses`, `trip_expense_splits`, le bucket Storage
    `budgy-avatars` (public, 5 Mo max, images uniquement).
+4. `202608190004` — remplace transactionnellement `import_budgy_archive` : compatibilité
+   avec les anciennes clés `*_a_e_d`, activation des modules depuis les données importées,
+   diagnostic clair si `purchasePriceAED` manque. Ne crée aucun business artificiel.
 
 **Aucune migration ne touche** aux fichiers `202608180001` à `202608180006` (V1).
 
@@ -148,6 +151,9 @@ Sur l'app en production, avec un compte de test :
    la carte « Comptes du voyage ».
 6. Vérifier que **Business Dubaï** (`/business/dubai`) fonctionne toujours à l'identique
    pour le compte propriétaire historique.
+7. Depuis **Plus → Migration**, relancer le même ZIP Budget JR sur un compte de staging :
+   le premier import doit activer Budget, Voyages, Locations et Business ; le second doit
+   annoncer que l'archive est déjà importée et ne créer aucun doublon.
 
 ---
 

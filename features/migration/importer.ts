@@ -1,13 +1,141 @@
-import JSZip from "jszip";import { migrationManifestSchema,type MigrationManifest } from "@/schemas/migration";import type { AppData,AppDataKey,EntityMeta } from "@/types/domain";import { emptyData,LOCAL_USER_ID } from "@/lib/data/seed";import { importOrder } from "@/lib/data/entity-map";
-const files:Record<string,AppDataKey>={tenants:"tenants",rent_payments:"rentPayments",tenant_debts:"tenantDebts",dubai_parts:"dubaiParts",dubai_sales:"dubaiSales",dubai_expenses:"dubaiExpenses",dubai_cash_movements:"dubaiCashMovements",businesses:"businesses",business_contacts:"businessContacts",business_items:"businessItems",business_transactions:"businessTransactions",business_bookings:"businessBookings",business_tasks:"businessTasks",budget_entries:"budgetEntries",subscriptions:"subscriptions",trips:"trips",flights:"flights",accommodations:"accommodations",trip_activities:"tripActivities",trip_checklist_items:"tripChecklistItems",attachments:"attachments"};
-const camel=(key:string)=>key.replace(/_([a-z])/g,(_,letter:string)=>letter.toUpperCase());
-const record=(value:unknown):value is Record<string,unknown>=>Boolean(value)&&typeof value==="object"&&!Array.isArray(value);
-export interface ArchiveAttachment{attachmentId:string;file:File;}
-export interface ArchivePreview{manifest:MigrationManifest;counts:Partial<Record<AppDataKey,number>>;warnings:string[];data:AppData;checksum:string;attachmentFiles:ArchiveAttachment[];}
-const checksumFor=async(file:File)=>Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",await file.arrayBuffer()))).map((value)=>value.toString(16).padStart(2,"0")).join("");
-export async function readBudgetJrArchive(file:File):Promise<ArchivePreview>{if(file.size>100_000_000)throw new Error("L’archive dépasse la limite de 100 Mo.");const checksum=await checksumFor(file);const zip=await JSZip.loadAsync(file);const manifestFile=zip.file("manifest.json");if(!manifestFile)throw new Error("manifest.json est absent du ZIP.");const manifest=migrationManifestSchema.parse(JSON.parse(await manifestFile.async("string")) as unknown);const idMap=new Map<string,string>();const rawByKey=new Map<AppDataKey,Record<string,unknown>[]>();const counts:Partial<Record<AppDataKey,number>>={};const warnings:string[]=[];let totalRows=0;
- for(const [name,key] of Object.entries(files)){const entry=zip.file(`data/${name}.json`);if(!entry)continue;const parsed=JSON.parse(await entry.async("string")) as unknown;if(!Array.isArray(parsed)){warnings.push(`${name}.json n’est pas une liste.`);continue;}const rows=parsed.filter(record);totalRows+=rows.length;if(totalRows>25_000)throw new Error("L’archive contient plus de 25 000 éléments.");rawByKey.set(key,rows);counts[key]=rows.length;for(const row of rows){const legacy=String(row.legacy_id??row.legacyId??row.id??"");if(legacy&&!idMap.has(legacy))idMap.set(legacy,crypto.randomUUID());}}
- const output=structuredClone(emptyData);for(const [key,rows] of rawByKey){const normalized=rows.map((row)=>{const next:Record<string,unknown>={};for(const [source,value] of Object.entries(row)){let target=camel(source);if(target==="legacyId"||target==="migrationBatchId")next[target]=value;else if(target==="id")continue;else if(target.endsWith("LegacyId")){target=`${target.slice(0,-8)}Id`;next[target]=idMap.get(String(value))??value;}else if(target.endsWith("Id")&&typeof value==="string")next[target]=idMap.get(value)??value;else next[target]=value;}const legacy=String(row.legacy_id??row.legacyId??row.id??crypto.randomUUID());next.id=idMap.get(legacy)??crypto.randomUUID();next.userId=LOCAL_USER_ID;next.legacyId=legacy;return next;});(output[key] as unknown[]) .push(...normalized);}
- const attachmentFiles:ArchiveAttachment[]=[];for(const attachment of output.attachments){const candidates=[attachment.storagePath,attachment.fileName,`attachments/${attachment.fileName}`].filter(Boolean);const zipEntry=candidates.map((name)=>zip.file(name)).find(Boolean)??Object.values(zip.files).find((entry)=>!entry.dir&&entry.name.startsWith("attachments/")&&entry.name.endsWith(`/${attachment.fileName}`));if(!zipEntry){warnings.push(`Pièce jointe absente : ${attachment.fileName}`);continue;}const blob=await zipEntry.async("blob");attachmentFiles.push({attachmentId:attachment.id,file:new File([blob],attachment.fileName,{type:attachment.mimeType||blob.type})});}
- return {manifest,counts,warnings,data:output,checksum,attachmentFiles};}
-export function mergeImportedData(current:AppData,incoming:AppData):{data:AppData;inserted:number;skipped:number}{const merged=structuredClone(current);let inserted=0,skipped=0;for(const key of importOrder){for(const entity of incoming[key] as EntityMeta[]){const legacy=entity.legacyId;const exists=(merged[key] as EntityMeta[]).some((candidate)=>candidate.id===entity.id||(legacy&&candidate.legacyId===legacy));if(exists){skipped++;continue;}(merged[key] as unknown[]).push(entity);inserted++;}}return {data:merged,inserted,skipped};}
+import JSZip from "jszip";
+import { archiveEntityLabels, archiveEntitySchemas, migrationManifestSchema, type ArchiveDataKey, type MigrationManifest } from "@/schemas/migration";
+import type { AppData, AppDataKey, EntityMeta } from "@/types/domain";
+import { emptyData, LOCAL_USER_ID } from "@/lib/data/seed";
+import { importOrder, snakeToCamel } from "@/lib/data/entity-map";
+
+export const archiveFiles: Record<string, ArchiveDataKey> = {
+  tenants: "tenants", rent_payments: "rentPayments", tenant_debts: "tenantDebts",
+  dubai_parts: "dubaiParts", dubai_sales: "dubaiSales", dubai_expenses: "dubaiExpenses",
+  dubai_cash_movements: "dubaiCashMovements", businesses: "businesses", business_contacts: "businessContacts",
+  business_items: "businessItems", business_transactions: "businessTransactions", business_bookings: "businessBookings",
+  business_tasks: "businessTasks", budget_entries: "budgetEntries", subscriptions: "subscriptions", trips: "trips",
+  flights: "flights", accommodations: "accommodations", trip_activities: "tripActivities",
+  trip_checklist_items: "tripChecklistItems", attachments: "attachments",
+};
+
+const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+export interface ArchiveAttachment { attachmentId: string; file: File }
+export interface ArchivePreview {
+  manifest: MigrationManifest;
+  counts: Partial<Record<AppDataKey, number>>;
+  warnings: string[];
+  data: AppData;
+  checksum: string;
+  attachmentFiles: ArchiveAttachment[];
+}
+
+const checksumFor = async (file: File) => Array.from(new Uint8Array(
+  await crypto.subtle.digest("SHA-256", await file.arrayBuffer()),
+)).map((value) => value.toString(16).padStart(2, "0")).join("");
+
+const entityIdentity = (row: Record<string, unknown>) => String(row.name ?? row.title ?? row.label ?? row.fileName ?? row.legacyId ?? "sans identifiant");
+
+function validationError(key: ArchiveDataKey, row: Record<string, unknown>, issues: readonly { path: PropertyKey[]; message: string }[]) {
+  const issue = issues[0];
+  const field = String(issue?.path[0] ?? "donnée");
+  const reason = !Object.hasOwn(row, field) || row[field] === undefined
+    ? "est absent."
+    : row[field] === null ? "est null." : `est invalide (${issue?.message ?? "valeur non reconnue"}).`;
+  return new Error(`Import impossible :\n${archiveEntityLabels[key]} "${entityIdentity(row)}"\n${field} ${reason}`);
+}
+
+function normalizeRow(row: Record<string, unknown>, idMap: Map<string, string>) {
+  const next: Record<string, unknown> = {};
+  for (const [source, value] of Object.entries(row)) {
+    let target = snakeToCamel(source);
+    if (target === "id") continue;
+    if (target.endsWith("LegacyId")) {
+      if (value === null || value === undefined || value === "") continue;
+      target = `${target.slice(0, -8)}Id`;
+      next[target] = idMap.get(String(value)) ?? value;
+    } else if (target.endsWith("Id") && typeof value === "string") {
+      next[target] = idMap.get(value) ?? value;
+    } else {
+      next[target] = value;
+    }
+  }
+  const legacy = String(row.legacy_id ?? row.legacyId ?? row.id ?? crypto.randomUUID());
+  next.id = idMap.get(legacy) ?? crypto.randomUUID();
+  next.userId = LOCAL_USER_ID;
+  next.legacyId = legacy;
+  return next;
+}
+
+export async function readBudgetJrArchive(file: File): Promise<ArchivePreview> {
+  if (file.size > 100_000_000) throw new Error("L’archive dépasse la limite de 100 Mo.");
+  const checksum = await checksumFor(file);
+  const zip = await JSZip.loadAsync(file);
+  const manifestFile = zip.file("manifest.json");
+  if (!manifestFile) throw new Error("manifest.json est absent du ZIP.");
+  const manifest = migrationManifestSchema.parse(JSON.parse(await manifestFile.async("string")) as unknown);
+  const idMap = new Map<string, string>();
+  const rawByKey = new Map<ArchiveDataKey, Record<string, unknown>[]>();
+  const counts: Partial<Record<AppDataKey, number>> = {};
+  const warnings: string[] = [];
+  let totalRows = 0;
+
+  for (const [name, key] of Object.entries(archiveFiles)) {
+    const path = `data/${name}.json`;
+    const entry = zip.file(path);
+    if (!entry) throw new Error(`Import impossible : ${path} est absent du ZIP.`);
+    const parsed = JSON.parse(await entry.async("string")) as unknown;
+    if (!Array.isArray(parsed)) throw new Error(`Import impossible : ${name}.json n’est pas une liste.`);
+    if (parsed.some((row) => !record(row))) throw new Error(`Import impossible : ${name}.json contient un élément invalide.`);
+    const rows = parsed as Record<string, unknown>[];
+    totalRows += rows.length;
+    if (totalRows > 25_000) throw new Error("L’archive contient plus de 25 000 éléments.");
+    rawByKey.set(key, rows);
+    counts[key] = rows.length;
+    const declaredCount = manifest.entities?.find((entity) => entity.key === name)?.count;
+    if (declaredCount !== undefined && declaredCount !== rows.length) warnings.push(`${name}.json : ${rows.length} élément(s), mais le manifeste en annonce ${declaredCount}.`);
+    for (const row of rows) {
+      const legacy = String(row.legacy_id ?? row.legacyId ?? row.id ?? "");
+      if (!legacy) throw new Error(`Import impossible : ${archiveEntityLabels[key]} sans legacy_id.`);
+      if (idMap.has(legacy)) throw new Error(`Import impossible : legacy_id dupliqué "${legacy}".`);
+      idMap.set(legacy, crypto.randomUUID());
+    }
+  }
+
+  const output = structuredClone(emptyData);
+  for (const [key, rows] of rawByKey) {
+    const normalized = rows.map((row) => {
+      const candidate = normalizeRow(row, idMap);
+      const result = archiveEntitySchemas[key].safeParse(candidate);
+      if (!result.success) throw validationError(key, candidate, result.error.issues);
+      return result.data;
+    });
+    (output[key] as unknown[]).push(...normalized);
+  }
+
+  const attachmentFiles: ArchiveAttachment[] = [];
+  for (const attachment of output.attachments) {
+    const candidates = [attachment.storagePath, attachment.fileName, `attachments/${attachment.fileName}`].filter(Boolean);
+    const zipEntry = candidates.map((name) => zip.file(name)).find(Boolean)
+      ?? Object.values(zip.files).find((entry) => !entry.dir && entry.name.startsWith("attachments/") && entry.name.endsWith(`/${attachment.fileName}`));
+    if (!zipEntry) {
+      warnings.push(`Pièce jointe absente : ${attachment.fileName}`);
+      continue;
+    }
+    const blob = await zipEntry.async("blob");
+    attachmentFiles.push({ attachmentId: attachment.id, file: new File([blob], attachment.fileName, { type: attachment.mimeType || blob.type }) });
+  }
+  return { manifest, counts, warnings, data: output, checksum, attachmentFiles };
+}
+
+export function mergeImportedData(current: AppData, incoming: AppData): { data: AppData; inserted: number; skipped: number } {
+  const merged = structuredClone(current);
+  let inserted = 0;
+  let skipped = 0;
+  for (const key of importOrder) {
+    for (const entity of incoming[key] as EntityMeta[]) {
+      const legacy = entity.legacyId;
+      const exists = (merged[key] as EntityMeta[]).some((candidate) => candidate.id === entity.id || (legacy && candidate.legacyId === legacy));
+      if (exists) { skipped++; continue; }
+      (merged[key] as unknown[]).push(entity);
+      inserted++;
+    }
+  }
+  return { data: merged, inserted, skipped };
+}

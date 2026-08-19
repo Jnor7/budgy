@@ -27,4 +27,20 @@ describe("mapping Supabase", () => {
     expect(Object.keys(payload)).toHaveLength(21);
     expect(payload.budget_entries).toHaveLength(1);
   });
+
+  it("conserve les acronymes AED et KPI dans les deux sens", () => {
+    const row = toDatabaseRow({
+      id: "part-1", userId: LOCAL_USER_ID, legacyId: "dubai_part_1",
+      purchasePriceAED: 150, targetSalePriceAED: 300, cashWithdrawnAED: 0,
+      moduleKPI: true,
+    } as never);
+    expect(row).toMatchObject({
+      purchase_price_aed: 150,
+      target_sale_price_aed: 300,
+      cash_withdrawn_aed: 0,
+      module_kpi: true,
+    });
+    expect(row).not.toHaveProperty("purchase_price_a_e_d");
+    expect(fromDatabaseRow(row)).toMatchObject({ purchasePriceAED: 150, moduleKPI: true });
+  });
 });

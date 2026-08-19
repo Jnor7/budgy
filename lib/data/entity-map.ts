@@ -58,8 +58,20 @@ const numericFields = new Set([
   "salePrice", "price", "potentialAmount", "peopleCount", "targetBudget", "sizeBytes",
 ]);
 
-export const camelToSnake = (value: string) => value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
-export const snakeToCamel = (value: string) => value.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+/**
+ * Convertit aussi correctement les acronymes métier. L'ancienne expression
+ * produisait `purchase_price_a_e_d`, clé ignorée par PostgreSQL, au lieu de
+ * `purchase_price_aed`.
+ */
+export const camelToSnake = (value: string) =>
+  value.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
+
+const domainAcronyms: Record<string, string> = { aed: "AED", kpi: "KPI" };
+
+export const snakeToCamel = (value: string) => {
+  const [first = "", ...rest] = value.split("_");
+  return first + rest.map((part) => domainAcronyms[part] ?? `${part.charAt(0).toUpperCase()}${part.slice(1)}`).join("");
+};
 
 export function toDatabaseRow(entity: AppEntity): Record<string, Json> {
   return Object.fromEntries(Object.entries(entity).filter(([,value])=>value!==undefined).map(([key, value]) => [camelToSnake(key), value as Json]));
