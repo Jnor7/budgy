@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { readBudgetJrArchive, mergeImportedData, type ArchivePreview } from "@/features/migration/importer";
+import { describeSupabaseError } from "@/lib/errors";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { resolveMigrationAvailability, MIGRATION_AVAILABILITY_MESSAGES } from "@/lib/data/migration-state";
 import { deleteAttachmentFile, uploadAttachmentFile } from "@/services/attachments";
@@ -49,7 +50,7 @@ export default function MigrationPage() {
     try {
       setPreview(await readBudgetJrArchive(file));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Archive invalide.");
+      setError(describeSupabaseError(reason, "Archive invalide."));
     }
   };
 
@@ -81,9 +82,10 @@ export default function MigrationPage() {
       }
     } catch (reason) {
       for (const path of uploaded) await deleteAttachmentFile(path, localMode).catch(() => undefined);
-      // Le message reflète toujours la vraie cause (session, réseau, archive) — jamais
-      // un "Migration impossible" générique qui masquerait le diagnostic.
-      setError(reason instanceof Error ? reason.message : "Import impossible.");
+      // Le message reflète toujours la vraie cause (session, réseau, archive, erreur
+      // Supabase avec son `hint`) — jamais un "Import impossible" générique qui
+      // masquerait le diagnostic. Voir lib/errors.ts.
+      setError(describeSupabaseError(reason, "Import impossible."));
     } finally {
       setBusy(false);
     }

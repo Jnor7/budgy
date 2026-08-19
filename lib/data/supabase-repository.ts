@@ -127,6 +127,17 @@ export class SupabaseRepository {
     if (error) throw error;
   }
 
+  /**
+   * Import de l'archive Budget JR via la fonction SQL `import_budgy_archive`.
+   *
+   * IMPORTANT : cet appel DOIT rester `this.client.rpc(...)` — jamais un `fetch()`
+   * manuel vers `/rest/v1/rpc/import_budgy_archive`. Le client Supabase partagé
+   * (voir lib/supabase/client.ts) attache automatiquement l'en-tête `apikey` et le
+   * JWT de session à CHAQUE requête via son wrapper interne `fetchWithAuth` — un
+   * fetch manuel perdrait ces deux en-têtes et produirait l'erreur Supabase
+   * "No API key found in request". Voir tests/import-archive-rpc.test.ts pour la
+   * vérification de non-régression contre un vrai serveur HTTP local.
+   */
   async importArchive(data: AppData, checksum: string): Promise<RemoteImportResult> {
     const { data: result, error } = await this.client.rpc("import_budgy_archive", {
       p_payload: toDatabasePayload(data),
