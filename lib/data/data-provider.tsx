@@ -5,7 +5,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { hasInvalidSupabaseMode, usesSupabase } from "@/lib/supabase/config";
 import { SupabaseRepository, type RemoteImportResult } from "@/lib/data/supabase-repository";
 import { enabledModuleKeys, MODULE_KEYS } from "@/lib/modules/registry";
-import type { AppData, AppDataKey, AppEntity, DirectoryProfile, ModuleKey, Profile } from "@/types/domain";
+import type { AppData, AppDataKey, AppEntity, DirectoryProfile, ModuleKey, Profile, TripCoverPatch } from "@/types/domain";
 import { demoData, emptyData, LOCAL_USER_ID } from "@/lib/data/seed";
 import type { Airport } from "@/lib/airports/airports";
 
@@ -25,6 +25,7 @@ interface DataContextValue {
   create: <K extends AppDataKey>(key: K, payload: Omit<EntityFor<K>, "id" | "userId">, options?: { userId?: string }) => EntityFor<K>;
   update: <K extends AppDataKey>(key: K, id: string, patch: Partial<EntityFor<K>>) => void;
   updateAndWait: <K extends AppDataKey>(key: K, id: string, patch: Partial<EntityFor<K>>) => Promise<void>;
+  updateTripCoverAndWait: (tripId: string, cover: TripCoverPatch) => Promise<void>;
   remove: <K extends AppDataKey>(key: K, id: string) => void;
   replaceAll: (data: AppData) => void;
   importArchive: (data: AppData, checksum: string) => Promise<RemoteImportResult>;
@@ -263,6 +264,34 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     void updateAndWait(key, id, patch).catch(() => undefined);
   }, [updateAndWait]);
 
+  const updateTripCoverAndWait = useCallback(async (tripId: string, cover: TripCoverPatch) => {
+    const previous = dataRef.current.trips.find((trip) => trip.id === tripId);
+    setData((current) => ({
+      ...current,
+      trips: current.trips.map((trip) => trip.id === tripId ? { ...trip, ...cover } : trip),
+    }));
+    const repository = repositoryRef.current;
+    if (!repository) return;
+    setSyncStatus("syncing");
+    try {
+      await pendingInsertsRef.current.get(tripId);
+      const persisted = await repository.updateTripCover(tripId, cover);
+      setData((current) => ({
+        ...current,
+        trips: current.trips.map((trip) => trip.id === tripId ? { ...trip, ...persisted } : trip),
+      }));
+      setSyncError("");
+      setSyncStatus("idle");
+    } catch (reason) {
+      if (previous) setData((current) => ({
+        ...current,
+        trips: current.trips.map((trip) => trip.id === tripId ? previous : trip),
+      }));
+      reportError(reason);
+      throw reason;
+    }
+  }, [reportError]);
+
   const remove = useCallback(<K extends AppDataKey>(key: K, id: string) => {
     let removed: EntityFor<K> | undefined;
     let index = -1;
@@ -439,7 +468,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [directory, profile?.avatarUrl, userId]);
 
   const value = useMemo<DataContextValue>(() => ({
-    data, ready, localMode, userId, syncStatus, syncError, create, update, updateAndWait, remove,
+    data, ready, localMode, userId, syncStatus, syncError, create, update, updateAndWait, updateTripCoverAndWait, remove,
     replaceAll: setData,
     importArchive,
     resetDemo: () => setData(cloneDemo()),
@@ -467,7 +496,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     avatarUrl, create, data, directory, displayName, importArchive, inviteToTrip, localMode, markNotificationRead,
     modules, modulesConfigured, profile, ready, reload, remove, repositoryReady, respondInvitation, saveProfile,
     respondTravelFriendRequest, removeTravelFriend, searchAirportDirectory, searchTravelProfiles, sendTravelFriendRequest,
-    setModules, supabaseConfigured, syncError, syncStatus, update, updateAndWait, userId,
+    setModules, supabaseConfigured, syncError, syncStatus, update, updateAndWait, updateTripCoverAndWait, userId,
   ]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

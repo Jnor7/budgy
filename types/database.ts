@@ -30,6 +30,27 @@ export interface Database {
         Args: { p_query: string; p_limit?: number };
         Returns: { id: number; ident: string; iata_code: string | null; icao_code: string | null; name: string; municipality: string; country_code: string; latitude: number | null; longitude: number | null; type: string }[];
       };
+      update_trip_cover: {
+        Args: {
+          p_trip_id: string;
+          p_cover_image_url: string;
+          p_cover_image_provider: string;
+          p_cover_image_id: string;
+          p_cover_photographer: string;
+          p_cover_photographer_url: string;
+          p_cover_attribution: string;
+        };
+        Returns: {
+          id: string;
+          cover_image_url: string;
+          cover_image_provider: string;
+          cover_image_id: string;
+          cover_photographer: string;
+          cover_photographer_url: string;
+          cover_attribution: string;
+          cover_updated_at: string;
+        }[];
+      };
       find_travel_user: {
         Args: { p_handle: string };
         Returns: { user_id: string; username: string; avatar_url: string }[];

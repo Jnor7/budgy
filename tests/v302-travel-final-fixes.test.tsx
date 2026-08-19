@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
   updateAndWait: vi.fn(),
+  updateTripCoverAndWait: vi.fn(),
   remove: vi.fn(),
   reload: vi.fn(),
   data: {
@@ -34,6 +35,7 @@ vi.mock("@/lib/data/data-provider", () => ({
     create: mocks.create,
     update: mocks.update,
     updateAndWait: mocks.updateAndWait,
+    updateTripCoverAndWait: mocks.updateTripCoverAndWait,
     remove: mocks.remove,
     reload: mocks.reload,
     displayName: () => "Junior",
@@ -52,6 +54,7 @@ beforeEach(() => {
   mocks.create.mockReset();
   mocks.update.mockReset();
   mocks.updateAndWait.mockReset().mockResolvedValue(undefined);
+  mocks.updateTripCoverAndWait.mockReset().mockResolvedValue(undefined);
   mocks.remove.mockReset();
   mocks.reload.mockReset().mockResolvedValue(undefined);
   mocks.data.trips.length = 0;
@@ -109,7 +112,7 @@ describe("Budgy V3.0.2 — Unsplash", () => {
 
   it("attend la persistance du refresh avant le succès et met la cover à jour", async () => {
     (mocks.data.trips as Trip[]).push({ ...trip });
-    mocks.updateAndWait.mockImplementation(async (_key, _id, patch) => Object.assign(mocks.data.trips[0]!, patch));
+    mocks.updateTripCoverAndWait.mockImplementation(async (_id, patch) => Object.assign(mocks.data.trips[0]!, patch));
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ provider: "unsplash", photoId: "new-photo", imageUrl: "https://images.unsplash.com/new-photo", photographer: "Aiko", photographerUrl: "https://unsplash.com/@aiko", attribution: "Photo de Aiko sur Unsplash" }) }));
 
     render(<ToastProvider><TripsPage /></ToastProvider>);
@@ -117,7 +120,7 @@ describe("Budgy V3.0.2 — Unsplash", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Modifier" }));
     fireEvent.click(screen.getByRole("button", { name: "Rafraîchir la photo" }));
 
-    await waitFor(() => expect(mocks.updateAndWait).toHaveBeenCalledWith("trips", "trip-v302", expect.objectContaining({ coverImageId: "new-photo" })));
+    await waitFor(() => expect(mocks.updateTripCoverAndWait).toHaveBeenCalledWith("trip-v302", expect.objectContaining({ coverImageId: "new-photo" })));
     expect(mocks.reload).toHaveBeenCalledOnce();
     expect(await screen.findByText("Photo actualisée")).toBeTruthy();
     expect(document.querySelector('.travel-cover.has-image img[src="https://images.unsplash.com/new-photo"]')).toBeTruthy();

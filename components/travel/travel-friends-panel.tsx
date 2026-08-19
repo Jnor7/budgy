@@ -38,7 +38,7 @@ export function TravelFriendsPanel() {
     try {
       await sendTravelFriendRequest(selectedProfile.username);
       showToast({ title: "Demande envoyée", detail: `À ${selectedProfile.username}`, tone: "success" });
-      setSelectedProfile(undefined);
+      close();
     } catch {
       showToast({ title: "Demande impossible", detail: localMode ? "Connectez Supabase pour ajouter un ami." : "Vérifiez le pseudo ou une demande existante.", tone: "error" });
     } finally { setBusy(false); setConfirmRequest(false); }

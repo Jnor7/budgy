@@ -3,8 +3,9 @@ import { emptyData } from "@/lib/data/seed";
 import { entityKeys, entityTables, fromDatabaseRow, toDatabasePayload, toDatabaseRow } from "@/lib/data/entity-map";
 import { MODULE_KEYS } from "@/lib/modules/registry";
 import type { Database, Json } from "@/types/database";
-import type { AppData, AppDataKey, AppEntity, DirectoryProfile, ModuleKey, Profile, UserPreferences } from "@/types/domain";
+import type { AppData, AppDataKey, AppEntity, DirectoryProfile, ModuleKey, Profile, TripCoverPatch, UserPreferences } from "@/types/domain";
 import type { Airport } from "@/lib/airports/airports";
+import { airportCountryCodesMatching, airportCountryName } from "@/lib/airports/countries";
 import { countryCodeToFlag } from "@/lib/travel/destinations";
 
 export interface RemoteImportResult { inserted: number; skipped: number; batchId?: string; alreadyImported: boolean; }
@@ -124,6 +125,25 @@ export class SupabaseRepository {
     return (data ?? {}) as Record<string, unknown>;
   }
 
+  /** Ecriture atomique et autorisee owner/editor des seules metadonnees de cover. */
+  async updateTripCover(tripId: string, cover: TripCoverPatch) {
+    const { data, error } = await this.client.rpc("update_trip_cover", {
+      p_trip_id: tripId,
+      p_cover_image_url: cover.coverImageUrl,
+      p_cover_image_provider: cover.coverImageProvider,
+      p_cover_image_id: cover.coverImageId,
+      p_cover_photographer: cover.coverPhotographer,
+      p_cover_photographer_url: cover.coverPhotographerUrl,
+      p_cover_attribution: cover.coverAttribution,
+    });
+    if (error) throw error;
+    const persisted = (data ?? [])[0];
+    if (!persisted?.cover_image_url || persisted.cover_image_id !== cover.coverImageId) {
+      throw new Error(`La couverture du voyage ${tripId} n'a pas ete confirmee par Supabase.`);
+    }
+    return fromDatabaseRow(persisted as unknown as Record<string, unknown>);
+  }
+
   async searchTravelProfiles(query: string, limit = 6): Promise<DirectoryProfile[]> {
     const { data, error } = await this.client.rpc("search_travel_profiles", { p_query: query, p_limit: Math.min(Math.max(limit, 1), 8) });
     if (error) throw error;
@@ -155,13 +175,32 @@ export class SupabaseRepository {
   }
 
   async searchAirports(query: string): Promise<Airport[]> {
-    const { data, error } = await this.client.rpc("search_airports", { p_query: query, p_limit: 30 });
+    const normalized = query.trim();
+    const { data, error } = await this.client.rpc("search_airports", { p_query: normalized, p_limit: 24 });
     if (error) throw error;
-    return (data ?? []).filter((row) => row.iata_code).map((row) => ({
-      code: row.iata_code!, city: row.municipality, name: row.name,
-      country: row.country_code, countryCode: row.country_code,
-      flag: countryCodeToFlag(row.country_code), ident: row.ident,
-    }));
+    const countryCodes = airportCountryCodesMatching(normalized);
+    let countryRows: typeof data = [];
+    if (countryCodes.length > 0) {
+      const countryResult = await this.client
+        .from("airports")
+        .select("id,ident,iata_code,icao_code,name,municipality,country_code,latitude,longitude,type")
+        .in("country_code", countryCodes)
+        .not("iata_code", "is", null)
+        .order("type")
+        .order("municipality")
+        .limit(24);
+      if (countryResult.error) throw countryResult.error;
+      countryRows = countryResult.data as typeof data;
+    }
+    const rows = [...(data ?? []), ...(countryRows ?? [])];
+    return [...new Map(rows.filter((row) => row.iata_code).map((row) => {
+      const airport: Airport = {
+        code: row.iata_code!, city: row.municipality, name: row.name,
+        country: airportCountryName(row.country_code), countryCode: row.country_code,
+        flag: countryCodeToFlag(row.country_code), ident: row.ident,
+      };
+      return [airport.code, airport] as const;
+    })).values()].slice(0, 24);
   }
 
   async markNotificationRead(id: string) {

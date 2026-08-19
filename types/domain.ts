@@ -91,6 +91,11 @@ export interface Trip extends EntityMeta {
   coverImageUrl: string;
   countryName?: string; countryCode?: string; coverImageProvider?: string; coverImageId?: string;
   coverPhotographer?: string; coverPhotographerUrl?: string; coverAttribution?: string;
+  coverUpdatedAt?: ISODate | null;
+}
+export interface TripCoverPatch {
+  coverImageUrl: string; coverImageProvider: string; coverImageId: string;
+  coverPhotographer: string; coverPhotographerUrl: string; coverAttribution: string;
 }
 export interface Flight extends EntityMeta {
   tripId: UUID; airline: string; fromCode: string; toCode: string; departDate: ISODate;
