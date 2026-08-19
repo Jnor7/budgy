@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, type LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 export const CATEGORY_COLORS: Record<string, string> = {
   revenus: "var(--v2-positive)", fixes: "var(--v2-cat-fixes)", fixe: "var(--v2-cat-fixes)",
@@ -28,6 +28,9 @@ const TONE_COLORS: Record<string, string> = {
   orange: "#f59e0b", red: "var(--v2-negative)", rose: "#c2477e",
 };
 export type Tone = keyof typeof TONE_COLORS;
+
+/** Couleurs {bg, fg} d'un ton, réutilisées par V2Icon/V2Tile et par l'icône illustrative des Sheet. */
+export const toneStyle = (tone: Tone) => ({ background: TONE_BACKGROUNDS[tone], color: TONE_COLORS[tone] });
 
 export function V2Card({ children, className = "", as = "section" }: {
   children: ReactNode; className?: string; as?: "section" | "div";
@@ -61,10 +64,14 @@ export function V2Icon({ icon: Icon, tone = "purple", size = 19 }: { icon: Lucid
 
 export interface DonutSlice { label: string; amount: number; share: number }
 
+/** Étiquettes normalisées qui reçoivent le dégradé bleu premium plutôt qu'une teinte plate. */
+const GRADIENT_SLICE_LABELS = new Set(["fixes", "fixe"]);
+
 /** Donut SVG accessible : chaque part est décrite dans le `title` du groupe. */
 export function V2Donut({ slices, centerValue, centerLabel, size = 148, thickness = 20 }: {
   slices: DonutSlice[]; centerValue: string; centerLabel?: string; size?: number; thickness?: number;
 }) {
+  const gradientId = useId();
   const radius = (size - thickness) / 2;
   const circumference = 2 * Math.PI * radius;
 
@@ -83,17 +90,27 @@ export function V2Donut({ slices, centerValue, centerLabel, size = 148, thicknes
   return (
     <div className="v2-donut" style={{ width: size, height: size }}>
       <svg width={size} height={size} role="img" aria-label={`Répartition : ${centerValue}`}>
+        <defs>
+          {/* Même famille de bleu que la carte principale et la barre de progression :
+              la part "Fixes" du budget n'est plus une couleur violette plate. */}
+          <linearGradient id={`${gradientId}-blue`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="var(--v2-indigo)" />
+            <stop offset="100%" stopColor="var(--v2-blue)" />
+          </linearGradient>
+        </defs>
         <circle
           cx={size / 2} cy={size / 2} r={radius} fill="none"
           stroke="#f0eef5" strokeWidth={thickness}
         />
         {slices.map((slice, index) => {
           const arc = arcs[index]!;
+          const isGradientSlice = GRADIENT_SLICE_LABELS.has(slice.label.trim().toLocaleLowerCase("fr-FR"));
           return (
             <circle
               key={slice.label}
               cx={size / 2} cy={size / 2} r={radius} fill="none"
-              stroke={categoryColor(slice.label, index)} strokeWidth={thickness}
+              stroke={isGradientSlice ? `url(#${gradientId}-blue)` : categoryColor(slice.label, index)}
+              strokeWidth={thickness}
               strokeDasharray={arc.dash} strokeDashoffset={arc.dashOffset} strokeLinecap="butt"
             />
           );

@@ -242,6 +242,7 @@ export function TripCollaboration({ trip }: { trip: Trip }) {
         open={inviteOpen} title="Inviter un participant" submitLabel="Envoyer"
         disableSubmit={!handle.trim()} onClose={() => { setInviteOpen(false); setInviteStatus(""); setInviteError(""); }}
         onSubmit={() => void sendInvite()}
+        icon={UserPlus} tone="cyan"
       >
         <div className="form-grid">
           {localMode ? <p className="v2-banner">Les invitations nécessitent un compte Budgy synchronisé.</p> : null}
@@ -266,6 +267,7 @@ export function TripCollaboration({ trip }: { trip: Trip }) {
         open={expenseOpen} title="Nouvelle dépense partagée" submitLabel="Ajouter"
         disableSubmit={!title.trim() || amount <= 0 || sharedWith.length === 0}
         onClose={() => setExpenseOpen(false)} onSubmit={saveExpense}
+        icon={Receipt} tone="cyan"
       >
         <div className="form-grid">
           <Field label="Intitulé">

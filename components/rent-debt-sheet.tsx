@@ -1,5 +1,6 @@
 "use client";
 
+import { CircleAlert } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/components/ui/feedback";
 import { Field, Sheet } from "@/components/ui/modal";
@@ -28,5 +29,5 @@ function OpenRentDebtSheet({ tenant, year, initialMonth, onClose }: { tenant: Te
     showToast({ title: "Dette ajoutée", detail: `${tenant.name} · ${MONTHS[month - 1]} ${year}`, tone: "success" });
   };
 
-  return <Sheet open title="Ajouter une dette" submitLabel="Ajouter" disableSubmit={!label.trim() || amount <= 0} onClose={onClose} onSubmit={save}><div className="form-grid"><Field label="Montant"><AmountField value={amount} onChange={setAmount} autoFocus /></Field><FormSection title="Détails" hint="Cette dette utilise le calcul de report existant et reste rattachée au mois choisi."><Field label="Type de dette"><select className="select" value={label} onChange={(event) => setLabel(event.target.value)}><option value="">Choisir…</option><option>Retard de loyer</option><option>Charges</option><option>Réparation</option><option>Autre dette</option></select></Field><Field label="Mois"><select className="select" value={month} onChange={(event) => setMonth(Number(event.target.value))}>{MONTHS.map((name, index) => <option value={index + 1} key={name}>{name} {year}</option>)}</select></Field></FormSection></div></Sheet>;
+  return <Sheet open title="Ajouter une dette" submitLabel="Ajouter" disableSubmit={!label.trim() || amount <= 0} onClose={onClose} onSubmit={save} icon={CircleAlert} tone="orange"><div className="form-grid"><Field label="Montant"><AmountField value={amount} onChange={setAmount} autoFocus /></Field><FormSection title="Détails" hint="Cette dette utilise le calcul de report existant et reste rattachée au mois choisi."><Field label="Type de dette"><select className="select" value={label} onChange={(event) => setLabel(event.target.value)}><option value="">Choisir…</option><option>Retard de loyer</option><option>Charges</option><option>Réparation</option><option>Autre dette</option></select></Field><Field label="Mois"><select className="select" value={month} onChange={(event) => setMonth(Number(event.target.value))}>{MONTHS.map((name, index) => <option value={index + 1} key={name}>{name} {year}</option>)}</select></Field></FormSection></div></Sheet>;
 }

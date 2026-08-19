@@ -125,6 +125,7 @@ export default function GenericBusinessesPage() {
         disableSubmit={!draft.name.trim()}
         onClose={() => setOpen(false)}
         onSubmit={save}
+        icon={BriefcaseBusiness} tone="orange"
       >
         <div className="form-grid">
           <Field label="Nom">

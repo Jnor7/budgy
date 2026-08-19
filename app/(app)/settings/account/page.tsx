@@ -123,7 +123,7 @@ export default function AccountPage() {
 
       {error ? <p className="error">{error}</p> : null}
       {status ? <p className="positive small" style={{ textAlign: "center" }}>{status}</p> : null}
-      <Sheet open={avatarActions} title="Photo de profil" onClose={() => setAvatarActions(false)}><div className="form-grid"><button className="button button-primary" onClick={() => fileRef.current?.click()}>Choisir une nouvelle photo</button>{profile?.avatarUrl ? <button className="button button-danger" onClick={() => { setAvatarActions(false); setConfirmRemove(true); }}>Supprimer la photo</button> : null}</div></Sheet>
+      <Sheet open={avatarActions} title="Photo de profil" onClose={() => setAvatarActions(false)} icon={Camera} tone="purple"><div className="form-grid"><button className="button button-primary" onClick={() => fileRef.current?.click()}>Choisir une nouvelle photo</button>{profile?.avatarUrl ? <button className="button button-danger" onClick={() => { setAvatarActions(false); setConfirmRemove(true); }}>Supprimer la photo</button> : null}</div></Sheet>
       <ConfirmDialog open={confirmRemove} title="Supprimer la photo ?" detail="Votre avatar reviendra à vos initiales. Vous pourrez ajouter une nouvelle photo à tout moment." onCancel={() => setConfirmRemove(false)} onConfirm={() => { setConfirmRemove(false); void saveProfile({ avatarUrl: "" }).then(() => showToast({ title: "Photo supprimée", tone: "success" })); }} />
     </main>
   );

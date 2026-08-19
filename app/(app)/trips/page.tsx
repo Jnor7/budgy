@@ -181,6 +181,7 @@ export default function TripsPage() {
         open={open} title={editing ? "Modifier le voyage" : "Nouveau voyage"}
         submitLabel={editing ? "Enregistrer" : "Créer"} disableSubmit={!draft.title.trim()}
         onClose={() => setOpen(false)} onSubmit={save}
+        icon={Plane} tone="cyan"
       >
         <div className="form-grid">
           <FormSection title="Destination">
