@@ -64,7 +64,7 @@ export default function MorePage() {
         ))}
       </section>
 
-      {modules.length > 4 ? <section><div className="section-heading"><h2>Autres modules</h2><span>Actifs dans votre espace</span></div><div className="v2-card">{modules.slice(4).map((key) => { const definition = moduleDefinition(key); return <Link className="v2-row" href={definition.href} key={key}><V2Icon icon={definition.icon} tone={definition.tone} /><span className="v2-row-main"><strong>{definition.label}</strong><span>{definition.tagline}</span></span><ChevronRight size={18} className="muted" /></Link>; })}</div></section> : null}
+      {modules.length > 4 ? <section><div className="section-heading"><h2>Mes modules</h2><span>Actifs hors barre principale</span></div><div className="v2-card">{modules.slice(4).map((key) => { const definition = moduleDefinition(key); return <Link className="v2-row" href={definition.href} key={key}><V2Icon icon={definition.icon} tone={definition.tone} /><span className="v2-row-main"><strong>{definition.label}</strong><span>{definition.tagline}</span></span><ChevronRight size={18} className="muted" /></Link>; })}</div></section> : null}
 
       <section className="v2-card">
         {!localMode ? (
@@ -87,7 +87,7 @@ export default function MorePage() {
         ) : null}
       </section>
 
-      <p className="muted small" style={{ textAlign: "center" }}>Budgy V2.5.2 · identifiant {userId.slice(0, 8)}…</p>
+      <p className="muted small" style={{ textAlign: "center" }}>Budgy V2.5.3 · identifiant {userId.slice(0, 8)}…</p>
     </main>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronLeft, ChevronRight, Copy, Plus, ReceiptText, Upload, WalletCards } from "lucide-react";
+import { Car, Check, ChevronLeft, ChevronRight, Coins, Copy, House, Plus, ReceiptText, Smartphone, Upload, Utensils, WalletCards, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Field, Sheet } from "@/components/ui/modal";
 import { AnimatedSegmented, FormSection } from "@/components/ui/premium";
@@ -18,6 +18,16 @@ const blankDraft = (date: Date, type: EntryType = "depense"): Draft => ({
   date: date.toISOString(), note: "", status: "non",
 });
 
+const iconForEntry = (entry: BudgetEntry): LucideIcon => {
+  const label = `${entry.title} ${entry.category} ${entry.bucket}`.toLocaleLowerCase("fr-FR");
+  if (entry.type === "revenu") return Coins;
+  if (/loyer|logement|maison|appartement/.test(label)) return House;
+  if (/abonnement|téléphone|telephone|internet|stream/.test(label)) return Smartphone;
+  if (/transport|voiture|essence|train|bus/.test(label)) return Car;
+  if (/aliment|course|restaurant|repas/.test(label)) return Utensils;
+  return WalletCards;
+};
+
 export default function BudgetPage() {
   const { data, ready, create, update, remove } = useBudgyData();
   const [selectedMonth, setSelectedMonth] = useState(() => new Date());
@@ -32,6 +42,10 @@ export default function BudgetPage() {
 
   const entries = useMemo(() => entriesForMonth(data.budgetEntries, selectedMonth), [data.budgetEntries, selectedMonth]);
   const summary = useMemo(() => budgetSummary(entries), [entries]);
+  const confirmedCharges = entries.filter((entry) => entry.type === "depense" && entry.status === "recu" && entry.bucket.toLowerCase().includes("charge")).reduce((sum, entry) => sum + entry.amount, 0);
+  const confirmedVariables = Math.max(summary.confirmedExpenses - confirmedCharges, 0);
+  const balanceSegments = [summary.confirmedIncome, confirmedCharges, confirmedVariables, Math.max(summary.projectedBalance, 0)];
+  const balanceSegmentTotal = balanceSegments.reduce((sum, value) => sum + value, 0) || 1;
   const sections = [
     { title: "Rentrées", tone: "income", type: "revenu" as EntryType, bucket: "Rentrée", items: entries.filter((item) => item.type === "revenu") },
     { title: "Charges", tone: "charge", type: "depense" as EntryType, bucket: "Charge fixe", items: entries.filter((item) => item.type === "depense" && item.bucket.toLowerCase().includes("charge")) },
@@ -98,13 +112,14 @@ export default function BudgetPage() {
 
     <section className="budget-balance-card" key={`summary-${selectedMonth.toISOString()}`}>
       <div className="budget-balance-head"><div><span>Solde mensuel</span><strong>{eur.format(summary.confirmedBalance)}</strong></div><div><span>Potentiel</span><strong>{eur.format(summary.projectedBalance)}</strong></div></div>
-      <div className="budget-balance-kpis"><div><strong>{eur.format(summary.confirmedIncome)}</strong><span>Revenus</span></div><div><strong>{eur.format(summary.confirmedExpenses)}</strong><span>Charges</span></div><div><strong>{eur.format(summary.pendingExpenses)}</strong><span>Dépenses à venir</span></div></div>
+      <div className="financial-segments budget-financial-segments" aria-label="Répartition financière du mois">{balanceSegments.map((value, index) => <i className={`segment-${index + 1}`} style={{ width: `${value / balanceSegmentTotal * 100}%` }} key={index} />)}</div>
+      <div className="budget-balance-kpis"><div className="kpi-income"><strong>{eur.format(summary.confirmedIncome)}</strong><span>Revenus</span></div><div className="kpi-charge"><strong>{eur.format(summary.confirmedExpenses)}</strong><span>Charges</span></div><div className="kpi-expense"><strong>{eur.format(summary.pendingExpenses)}</strong><span>Dépenses à venir</span></div></div>
     </section>
 
     <button className="copy-month-action" onClick={copyNext}><Copy size={16} /><span><strong>Copier vers le mois suivant</strong><small>Reprendre ce budget sans créer de doublons</small></span><ChevronRight size={17} /></button>
 
     <div className="budget-sections">
-      {sections.map((section) => { const visible = section.items.filter((entry) => !hidden.includes(entry.id)); const done = visible.filter((entry) => entry.status === "recu").length; const progress = visible.length ? done / visible.length * 100 : 0; return <section className={`budget-block budget-${section.tone}`} key={section.title}><header><span><i />{section.title}<small>{visible.length}</small></span><strong>{eur.format(visible.reduce((sum, item) => sum + (item.status === "recu" ? item.amount : displayPotential(item)), 0))}</strong></header><div className="budget-block-progress"><i style={{ width: `${progress}%` }} /></div>{visible.length === 0 ? <p className="dense-empty">Aucun élément ce mois.</p> : visible.map((entry) => <SwipeRow key={entry.id} label={entry.title} onEdit={() => showEdit(entry)} onDelete={() => scheduleDelete(entry)}><div className="budget-jr-row"><span className="budget-row-icon"><WalletCards size={16} /></span><span className="list-main"><strong>{entry.title}</strong><small>{entry.category} · {shortDate(entry.date)}</small>{entry.status === "recu" ? <em>Reçu</em> : <em className="pending">En attente</em>}</span><strong>{eur.format(entry.status === "recu" ? entry.amount : displayPotential(entry))}</strong><button className={`entry-status ${entry.status === "recu" ? "done" : ""}`} aria-label={entry.status === "recu" ? "Passer en attente" : "Marquer reçu"} onClick={() => update("budgetEntries", entry.id, { status: entry.status === "recu" ? "non" : "recu" })}><Check size={14} /></button></div></SwipeRow>)}<button className="budget-block-add" onClick={() => showCreate(section.type, section.bucket)}><Plus size={15} /> Ajouter</button></section>; })}
+      {sections.map((section) => { const visible = section.items.filter((entry) => !hidden.includes(entry.id)); const expected = visible.reduce((sum, entry) => sum + displayPotential(entry), 0); const completed = visible.filter((entry) => entry.status === "recu").reduce((sum, entry) => sum + entry.amount, 0); const progress = expected ? Math.min(completed / expected * 100, 100) : 0; const addLabel = section.tone === "income" ? "Ajouter une rentrée" : section.tone === "charge" ? "Ajouter une charge" : "Ajouter une dépense"; return <section className={`budget-block budget-${section.tone}`} key={section.title}><header><span><i />{section.title}<small>{visible.length}</small></span><strong>{eur.format(expected)}</strong></header><div className="budget-block-progress"><i style={{ width: `${progress}%` }} /></div>{visible.length === 0 ? <p className="dense-empty">Aucun élément ce mois.</p> : visible.map((entry) => { const EntryIcon = iconForEntry(entry); const doneLabel = section.tone === "income" ? "Reçu" : section.tone === "charge" ? "Payé" : "Réalisé"; return <SwipeRow key={entry.id} label={entry.title} onEdit={() => showEdit(entry)} onDelete={() => scheduleDelete(entry)}><div className="budget-jr-row"><span className="budget-row-icon"><EntryIcon size={16} /></span><span className="list-main"><strong>{entry.title}</strong><small>{entry.category} · {shortDate(entry.date)}</small>{entry.status === "recu" ? <em>{doneLabel}</em> : <em className="pending">En attente</em>}</span><strong>{eur.format(entry.status === "recu" ? entry.amount : displayPotential(entry))}</strong><button className={`entry-status ${entry.status === "recu" ? "done" : ""}`} aria-label={entry.status === "recu" ? "Passer en attente" : `Marquer ${doneLabel.toLocaleLowerCase("fr-FR")}`} onClick={() => update("budgetEntries", entry.id, { status: entry.status === "recu" ? "non" : "recu" })}><Check size={14} /></button></div></SwipeRow>; })}<button className="budget-block-add" onClick={() => showCreate(section.type, section.bucket)}><Plus size={15} /> {addLabel}</button></section>; })}
     </div>
 
     <section className="utility-row"><div><span className="icon-tile icon-purple"><ReceiptText size={18} /></span><span><strong>Import Revolut</strong><small>CSV : description, montant, date</small></span></div><button className="button button-soft" onClick={() => fileRef.current?.click()}><Upload size={16} /> Importer</button><input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importCsv(file); }} /></section>

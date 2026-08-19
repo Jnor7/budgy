@@ -26,6 +26,10 @@ export default function HomePage() {
   const summary = useMemo(() => budgetSummary(monthEntries), [monthEntries]);
   const breakdown = useMemo(() => expenseBreakdown(monthEntries).slice(0, 4), [monthEntries]);
   const spent = useMemo(() => monthSpent(monthEntries), [monthEntries]);
+  const confirmedCharges = monthEntries.filter((entry) => entry.type === "depense" && entry.status === "recu" && entry.bucket.toLowerCase().includes("charge")).reduce((sum, entry) => sum + entry.amount, 0);
+  const confirmedVariables = Math.max(summary.confirmedExpenses - confirmedCharges, 0);
+  const financeSegments = [summary.confirmedIncome, confirmedCharges, confirmedVariables, Math.max(summary.projectedBalance, 0)];
+  const financeSegmentTotal = financeSegments.reduce((sum, value) => sum + value, 0) || 1;
 
   const trips = useMemo(
     () => visibleTrips(data.trips, data.tripMembers, userId).filter((trip) => !trip.isCompleted),
@@ -76,7 +80,7 @@ export default function HomePage() {
   return (
     <main className="page v2-page v2">
       <header className="home-brand-header">
-        <V2Avatar name={profile?.username ?? "Budgy"} url={profile?.avatarUrl || undefined} large />
+        <Link className="home-avatar-link" href="/settings/account" aria-label="Ouvrir mon profil"><V2Avatar name={profile?.username ?? "Budgy"} url={profile?.avatarUrl || undefined} large /></Link>
         <div className="home-brand-copy">
           <h1>Budgy</h1>
           <p>{greeting(today.getHours())} {profile?.username ?? "👋"}</p>
@@ -98,16 +102,19 @@ export default function HomePage() {
           <section className="v2-hero">
             <span className="v2-hero-label">Solde total</span>
             <strong className="v2-hero-amount">{eur.format(summary.confirmedBalance)}</strong>
+            <div className="financial-segments" aria-label={`Revenus ${eur.format(summary.confirmedIncome)}, charges ${eur.format(confirmedCharges)}, dépenses variables ${eur.format(confirmedVariables)}, potentiel ${eur.format(Math.max(summary.projectedBalance, 0))}`}>
+              {financeSegments.map((value, index) => <i className={`segment-${index + 1}`} style={{ width: `${value / financeSegmentTotal * 100}%` }} key={index} />)}
+            </div>
             <div className="v2-hero-split">
-              <div>
+              <div className="hero-income">
                 <span>↗ Revenus</span>
                 <strong>{eur.format(summary.confirmedIncome)}</strong>
               </div>
-              <div>
+              <div className="hero-expenses">
                 <span>↘ Dépenses</span>
                 <strong>{eur.format(summary.confirmedExpenses)}</strong>
               </div>
-              <div>
+              <div className="hero-potential">
                 <span>↗ Potentiel</span>
                 <strong>{eur.format(summary.projectedBalance)}</strong>
               </div>

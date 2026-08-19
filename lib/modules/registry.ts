@@ -78,6 +78,17 @@ export const MODULE_KEYS = MODULE_DEFINITIONS.map((item) => item.key);
 export const moduleDefinition = (key: ModuleKey) =>
   MODULE_DEFINITIONS.find((item) => item.key === key) ?? MODULE_DEFINITIONS[0]!;
 
+const NAVIGATION_LABELS: Record<ModuleKey, string> = {
+  budget: "Budget",
+  subscriptions: "Abos",
+  trips: "Voyages",
+  rentals: "Loyers",
+  businesses: "Business",
+};
+
+/** Libellés courts explicites : jamais d'ellipse dans la navigation mobile. */
+export const navigationLabel = (key: ModuleKey) => NAVIGATION_LABELS[key];
+
 /** Modules réellement actifs à partir des lignes `user_modules`. */
 export function enabledModuleKeys(modules: UserModule[]): ModuleKey[] {
   const fallback = new Map(MODULE_KEYS.map((key, index) => [key, index]));

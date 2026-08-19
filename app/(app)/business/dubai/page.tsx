@@ -1,11 +1,12 @@
 "use client";
-import { ArrowDownCircle,ArrowUpCircle,Banknote,Check,PackageCheck,PackageOpen,Paperclip,Percent,Plus,ReceiptText,ShoppingCart,Tag } from "lucide-react";
+import { ArrowDownCircle,ArrowLeft,ArrowUpCircle,Banknote,Check,PackageCheck,PackageOpen,Paperclip,Percent,Plus,ReceiptText,ShoppingCart,Tag } from "lucide-react";
 import { useEffect,useMemo,useRef,useState } from "react";
+import Link from "next/link";
 import { AttachmentManager } from "@/components/attachment-manager";
 import { ConfirmDialog,useToast } from "@/components/ui/feedback";
 import { RowMenu } from "@/components/ui/menu";
 import { Field,Sheet } from "@/components/ui/modal";
-import { AnimatedSegmented,AppPageHeader,FormSection } from "@/components/ui/premium";
+import { AnimatedSegmented,FormSection } from "@/components/ui/premium";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { convertCurrency,dubaiCashSummary,partMetrics } from "@/lib/domain/dubai";
 import { money,shortDate } from "@/lib/format";
@@ -37,7 +38,7 @@ export default function DubaiPage(){
 
  useEffect(()=>{if(actionHandled.current)return;const timer=window.setTimeout(()=>{actionHandled.current=true;const requested=new URLSearchParams(window.location.search).get("action");if(requested==="sale"||requested==="expense"||requested==="movement")openAction(requested);},0);return()=>window.clearTimeout(timer);},[]);
 
- return <main className="page dubai-page"><AppPageHeader title="Business Dubaï" subtitle="Stock, ventes, marge et cash." backHref="/business" action={<button className="compact-add" onClick={()=>{setEditingPart(undefined);setPartDraft(blankPart);setPartOpen(true);}}><Plus size={18}/> Référence</button>}/>
+ return <main className="page dubai-page"><header className="business-subnav"><Link href="/business"><ArrowLeft size={17}/> Business</Link><strong>Dubaï</strong><button className="compact-add" onClick={()=>{setEditingPart(undefined);setPartDraft(blankPart);setPartOpen(true);}}><Plus size={18}/> Référence</button></header>
   <AnimatedSegmented value={currency} options={(["AED","EUR","FCFA","USD"] as Currency[]).map((value)=>({value,label:value}))} onChange={chooseCurrency} label="Devise d’affichage"/>
   <section className="dubai-kpis"><article><span><Tag size={16}/></span><strong>{data.dubaiParts.length}</strong><small>Références</small></article><article><span><PackageOpen size={16}/></span><strong>{remaining}</strong><small>En stock</small></article><article><span><ShoppingCart size={16}/></span><strong>{sold}/{totalQty}</strong><small>Vendus</small></article><article><span><Percent size={16}/></span><strong>{totalQty?Math.round(sold/totalQty*100):0} %</strong><small>Taux de vente</small></article></section>
   <section className="dubai-finance"><header><div><span>Résultat actuel</span><strong className={cash.currentResult>=0?"positive":"negative"}>{money(cash.currentResult,currency)}</strong></div><Banknote size={28}/></header><div><span>Investi<strong>{display(bought)}</strong></span><span>Potentiel<strong>{display(potential)}</strong></span><span>Encaissé<strong>{money(cash.salesTotal,currency)}</strong></span><span>Décaissé<strong>{money(cash.totalDisbursed,currency)}</strong></span></div></section>

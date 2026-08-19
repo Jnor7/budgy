@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 import { useBudgyData } from "@/lib/data/data-provider";
-import { moduleDefinition, primaryNavigationModules } from "@/lib/modules/registry";
+import { moduleDefinition, navigationLabel, primaryNavigationModules } from "@/lib/modules/registry";
 
 interface Tab { href: string; label: string; icon: LucideIcon }
 
@@ -26,7 +26,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       .map(moduleDefinition)
       .map((definition) => ({
         href: definition.href,
-        label: definition.label.split(" ")[0]!,
+        label: navigationLabel(definition.key),
         icon: definition.icon,
       }));
     return [HOME, ...moduleTabs, MORE];
