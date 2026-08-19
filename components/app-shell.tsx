@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 import { useBudgyData } from "@/lib/data/data-provider";
-import { MODULE_DEFINITIONS } from "@/lib/modules/registry";
+import { moduleDefinition, primaryNavigationModules } from "@/lib/modules/registry";
 
 interface Tab { href: string; label: string; icon: LucideIcon }
 
@@ -22,9 +22,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { modules, ready } = useBudgyData();
 
   const tabs = useMemo<Tab[]>(() => {
-    const moduleTabs = MODULE_DEFINITIONS
-      .filter((definition) => definition.inNav && modules.includes(definition.key))
-      .sort((a, b) => a.navOrder - b.navOrder)
+    const moduleTabs = primaryNavigationModules(modules)
+      .map(moduleDefinition)
       .map((definition) => ({
         href: definition.href,
         label: definition.label.split(" ")[0]!,
@@ -35,7 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-frame">
-      {children}
+      <div className="page-transition" key={pathname}>{children}</div>
       <div className="tabbar-wrap">
         <nav className="tabbar" aria-label="Navigation principale" aria-busy={!ready}>
           {tabs.map(({ href, label, icon: Icon }) => {

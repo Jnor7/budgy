@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  ArrowUpRight, BriefcaseBusiness, Building2, ChevronRight, CircleDollarSign,
-  Plane, Plus, RefreshCcw, Sparkles,
+  BriefcaseBusiness, Building2, ChevronRight,
+  Plane, RefreshCcw, Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
@@ -71,14 +71,6 @@ export default function HomePage() {
         data.tripActivities.filter((item) => item.tripId === nextTrip.id),
       ).totalBudget
     : 0;
-
-  const quickActions = [
-    isModuleOn("budget") && { href: "/budget", label: "Dépense", icon: CircleDollarSign, color: "var(--v2-violet)" },
-    isModuleOn("budget") && { href: "/budget", label: "Revenu", icon: ArrowUpRight, color: "var(--v2-positive)" },
-    isModuleOn("trips") && { href: "/trips", label: "Voyage", icon: Plane, color: "#0ea5e9" },
-    isModuleOn("rentals") && { href: "/rentals", label: "Paiement loyer", icon: Building2, color: "#38bdf8" },
-    isModuleOn("businesses") && { href: "/business", label: "Vente", icon: BriefcaseBusiness, color: "#f59e0b" },
-  ].filter(Boolean) as { href: string; label: string; icon: typeof Plus; color: string }[];
 
   return (
     <main className="page v2-page v2">
@@ -157,20 +149,6 @@ export default function HomePage() {
             )}
           </section>
         </>
-      ) : null}
-
-      {quickActions.length > 0 ? (
-        <section className="v2-card">
-          <div className="v2-card-head"><h2>Actions rapides</h2></div>
-          <div className="v2-quick">
-            {quickActions.map((action) => (
-              <Link className="v2-quick-item" href={action.href} key={action.label}>
-                <action.icon size={20} style={{ color: action.color }} />
-                {action.label}
-              </Link>
-            ))}
-          </div>
-        </section>
       ) : null}
 
       <section className="v2-card">

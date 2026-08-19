@@ -4,6 +4,7 @@ import { Plane, Plus, Users } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { RowMenu } from "@/components/ui/menu";
+import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { Field, Sheet } from "@/components/ui/modal";
 import { V2Avatar, V2Empty, V2Skeleton } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
@@ -39,6 +40,8 @@ export default function TripsPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<string>();
   const [draft, setDraft] = useState<Draft>(blank);
+  const [pendingDelete, setPendingDelete] = useState<Trip>();
+  const { showToast } = useToast();
 
   const mine = useMemo(
     () => visibleTrips(data.trips, data.tripMembers, userId),
@@ -75,6 +78,7 @@ export default function TripsPage() {
     data.tripActivities.filter((item) => item.tripId === id).forEach((item) => remove("tripActivities", item.id));
     data.tripChecklistItems.filter((item) => item.tripId === id).forEach((item) => remove("tripChecklistItems", item.id));
     remove("trips", id);
+    showToast({ title: "Voyage supprimé", tone: "success" });
   };
 
   if (!ready) return <main className="page v2-page v2"><V2Skeleton height={70} /><V2Skeleton height={240} /></main>;
@@ -143,7 +147,7 @@ export default function TripsPage() {
                     <span>{dayCount(trip.startDate, trip.endDate)} jours</span>
                   </div>
                 </Link>
-                {owner ? <RowMenu onEdit={() => startEdit(trip)} onDelete={() => deleteTrip(trip.id)} /> : null}
+                {owner ? <RowMenu onEdit={() => startEdit(trip)} onDelete={() => setPendingDelete(trip)} /> : null}
               </div>
 
               <div className="v2-trip-stats">
@@ -187,10 +191,6 @@ export default function TripsPage() {
             <Field label="Voyageurs"><input className="input" type="number" min="1" value={draft.peopleCount} onChange={(event) => setDraft({ ...draft, peopleCount: Number(event.target.value) })} /></Field>
             <Field label="Budget cible"><input className="input" type="number" inputMode="decimal" value={draft.targetBudget || ""} onChange={(event) => setDraft({ ...draft, targetBudget: Number(event.target.value) })} /></Field>
           </div>
-          <Field label="Image de destination (URL)">
-            <input className="input" type="url" value={draft.coverImageUrl} placeholder="https://… (optionnel)" onChange={(event) => setDraft({ ...draft, coverImageUrl: event.target.value })} />
-          </Field>
-          <p className="muted small" style={{ margin: 0 }}>Sans image, Budgy affiche un dégradé.</p>
           <Field label="Notes"><textarea className="textarea" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} /></Field>
           {editing ? (
             <button className="card-flat spread" onClick={() => setDraft({ ...draft, isCompleted: !draft.isCompleted })}>
@@ -200,6 +200,7 @@ export default function TripsPage() {
           ) : null}
         </div>
       </Sheet>
+      <ConfirmDialog open={Boolean(pendingDelete)} title="Supprimer ce voyage ?" detail={`Le voyage « ${pendingDelete?.title ?? ""} » et ses vols, logements, activités et listes seront définitivement supprimés.`} onCancel={() => setPendingDelete(undefined)} onConfirm={() => { if (pendingDelete) deleteTrip(pendingDelete.id); setPendingDelete(undefined); }} />
     </main>
   );
 }

@@ -72,6 +72,7 @@ export const demoData: AppData = {
   attachments: [],
   userModules: (["budget","subscriptions","trips","rentals","businesses"] as const).map((moduleKey, index) => ({
     id: `module-${index + 1}`, userId: LOCAL_USER_ID, moduleKey, enabled: true,
+    sortOrder: index,
     createdAt: iso(-8, 1), updatedAt: iso(-8, 1),
   })),
   tripMembers: [], tripInvitations: [], notifications: [], tripExpenses: [], tripExpenseSplits: [],

@@ -29,7 +29,7 @@ interface DataContextValue {
   resetDemo: () => void;
   reload: () => Promise<void>;
   // --- V2 ---
-  /** Modules réellement activés, dans l'ordre du registre. */
+  /** Modules réellement activés, dans l'ordre choisi par l'utilisateur. */
   modules: ModuleKey[];
   isModuleOn: (key: ModuleKey) => boolean;
   /** Aucune ligne user_modules : le compte n'a jamais choisi sa configuration. */
@@ -276,13 +276,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const setModules = useCallback(async (keys: ModuleKey[]) => {
     const now = new Date().toISOString();
-    const rows = MODULE_KEYS.map((moduleKey, index) => {
+    const orderedKeys = [...keys, ...MODULE_KEYS.filter((key) => !keys.includes(key))];
+    const rows = orderedKeys.map((moduleKey, index) => {
       const existing = data.userModules.find((item) => item.moduleKey === moduleKey);
       return {
         id: existing?.id ?? `${userId}-${moduleKey}-${index}`,
         userId,
         moduleKey,
         enabled: keys.includes(moduleKey),
+        sortOrder: index,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
       };

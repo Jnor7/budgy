@@ -40,10 +40,12 @@ export class SupabaseRepository {
 
   /** Remplace la configuration de modules de l'utilisateur en une passe. */
   async setModules(userId: string, keys: ModuleKey[]) {
-    const rows = MODULE_KEYS.map((moduleKey) => ({
+    const orderedKeys = [...keys, ...MODULE_KEYS.filter((key) => !keys.includes(key))];
+    const rows = orderedKeys.map((moduleKey, sortOrder) => ({
       user_id: userId,
       module_key: moduleKey,
       enabled: keys.includes(moduleKey),
+      sort_order: sortOrder,
     }));
     const { error } = await this.client.from("user_modules").upsert(rows, { onConflict: "user_id,module_key" });
     if (error) throw error;

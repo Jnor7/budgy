@@ -3,6 +3,8 @@ import { ArrowLeft, CheckCircle2, CloudCog, FileArchive, LogIn, RefreshCcw, Shie
 import Link from "next/link";
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
+import { Sheet } from "@/components/ui/modal";
+import { SuccessState } from "@/components/ui/feedback";
 import { readBudgetJrArchive, mergeImportedData, type ArchivePreview } from "@/features/migration/importer";
 import { describeSupabaseError } from "@/lib/errors";
 import { useBudgyData } from "@/lib/data/data-provider";
@@ -136,12 +138,10 @@ export default function MigrationPage() {
         </Card>
       )}
 
-      {report && (
-        <Card>
-          <div className="row"><CheckCircle2 className="positive" /><strong>{report}</strong></div>
-          <p className="muted small">L’import est idempotent grâce au checksum et aux legacy_id. Relancer la même archive n’ajoute pas les mêmes éléments.</p>
-        </Card>
-      )}
+      <Sheet open={Boolean(report)} title="Import terminé" onClose={() => setReport("")}>
+        <SuccessState title="Vos données sont prêtes" detail={report} action={<button className="button button-primary" onClick={() => setReport("")}>Continuer dans Budgy</button>} />
+        <p className="muted small" style={{ textAlign: "center" }}>Le checksum et les identifiants historiques empêchent la création de doublons.</p>
+      </Sheet>
 
       <Card>
         <div className="row">

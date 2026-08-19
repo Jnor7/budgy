@@ -30,3 +30,8 @@ export async function requestPasswordReset(email: string) {
 export async function signOut() {
   return getSupabaseBrowserClient()?.auth.signOut();
 }
+
+/** Une inscription peut ouvrir une session immédiatement ou attendre la confirmation e-mail. */
+export function resolvePostSignup(session: unknown): "onboarding" | "confirm-email" {
+  return session ? "onboarding" : "confirm-email";
+}

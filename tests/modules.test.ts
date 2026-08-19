@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   BUSINESS_TEMPLATES, businessTemplate, enabledModuleKeys, hasAdvancedTrading,
-  hasConfiguredModules, isModuleEnabled, MODULE_DEFINITIONS, modulesForHistoricalData, suggestedModules,
+  hasConfiguredModules, isModuleEnabled, MODULE_DEFINITIONS, modulesForHistoricalData, primaryNavigationModules, suggestedModules,
 } from "@/lib/modules/registry";
 import { emptyData } from "@/lib/data/seed";
 import type { AppData, UserModule } from "@/types/domain";
 
 const USER = "user-1";
-const moduleRow = (moduleKey: UserModule["moduleKey"], enabled: boolean): UserModule => ({
+const moduleRow = (moduleKey: UserModule["moduleKey"], enabled: boolean, sortOrder = 0): UserModule => ({
   id: `${moduleKey}-row`, userId: USER, moduleKey, enabled,
+  sortOrder,
   createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
 });
 
@@ -29,6 +30,13 @@ describe("registre des modules", () => {
   it("un utilisateur Business + Voyages voit les deux, rien d'autre", () => {
     const modules = [moduleRow("businesses", true), moduleRow("trips", true), moduleRow("budget", false)];
     expect(enabledModuleKeys(modules).sort()).toEqual(["businesses", "trips"].sort());
+  });
+
+  it("respecte l'ordre personnel et limite la navigation aux trois premiers modules", () => {
+    const rows = [moduleRow("budget", true, 3), moduleRow("trips", true, 0), moduleRow("rentals", true, 2), moduleRow("businesses", true, 1)];
+    const ordered = enabledModuleKeys(rows);
+    expect(ordered).toEqual(["trips", "businesses", "rentals", "budget"]);
+    expect(primaryNavigationModules(ordered)).toEqual(["trips", "businesses", "rentals"]);
   });
 
   it("désactiver un module le retire de la liste active sans supprimer la ligne", () => {

@@ -1,29 +1,28 @@
 "use client";
 
 import {
-  BellRing, ChevronRight, Download, FileArchive, Info, LogOut, RefreshCcw,
-  Settings2, ShieldCheck, SlidersHorizontal, UserRound,
+  ChevronRight, FileArchive, LogOut, RefreshCcw,
+  Settings2, SlidersHorizontal, UserRound,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { V2Avatar, V2Icon } from "@/components/ui/v2";
+import { SyncBadge } from "@/components/ui/premium";
+import { useToast } from "@/components/ui/feedback";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { signOut } from "@/services/auth";
 
 const SECTIONS = [
   { href: "/settings/account", icon: UserRound, label: "Mon compte", detail: "Pseudo, avatar et mot de passe", tone: "purple" as const },
   { href: "/settings/modules", icon: SlidersHorizontal, label: "Mes modules", detail: "Activer ou désactiver des fonctions", tone: "purple" as const },
-  { href: "/settings", icon: BellRing, label: "Notifications", detail: "Invitations et échéances", tone: "orange" as const },
   { href: "/settings", icon: Settings2, label: "Préférences", detail: "Devise et affichage", tone: "cyan" as const },
   { href: "/settings/migration", icon: FileArchive, label: "Migration historique", detail: "Importer une archive Budget JR", tone: "purple" as const },
-  { href: "/settings/migration", icon: Download, label: "Export de mes données", detail: "Récupérer une copie", tone: "green" as const },
-  { href: "/settings", icon: ShieldCheck, label: "Sécurité", detail: "Session et synchronisation", tone: "green" as const },
-  { href: "/settings", icon: Info, label: "À propos", detail: "Budgy V2", tone: "cyan" as const },
 ];
 
 export default function MorePage() {
   const { profile, localMode, syncStatus, reload, userId } = useBudgyData();
   const router = useRouter();
+  const { showToast } = useToast();
 
   const logout = async () => {
     await signOut();
@@ -44,7 +43,7 @@ export default function MorePage() {
         <V2Avatar name={profile?.username ?? "Budgy"} url={profile?.avatarUrl || undefined} large />
         <div className="list-main">
           <strong style={{ fontSize: 17 }}>{profile?.username ?? "Mon compte"}</strong>
-          <div className="muted small">{localMode ? "Mode local" : "Synchronisé avec Supabase"}</div>
+          <SyncBadge status={syncStatus} local={localMode} />
         </div>
         <ChevronRight className="muted" />
       </Link>
@@ -64,7 +63,7 @@ export default function MorePage() {
 
       <section className="v2-card">
         {!localMode ? (
-          <button className="v2-row" disabled={syncStatus === "loading" || syncStatus === "syncing"} onClick={() => void reload()}>
+          <button className="v2-row" disabled={syncStatus === "loading" || syncStatus === "syncing"} onClick={() => void reload().then(()=>showToast({title:"Données actualisées",tone:"success"})).catch(()=>showToast({title:"Actualisation impossible",tone:"error"}))}>
             <V2Icon icon={RefreshCcw} tone="cyan" />
             <span className="v2-row-main">
               <strong>Actualiser les données</strong>
@@ -83,7 +82,7 @@ export default function MorePage() {
         ) : null}
       </section>
 
-      <p className="muted small" style={{ textAlign: "center" }}>Budgy V2 · identifiant {userId.slice(0, 8)}…</p>
+      <p className="muted small" style={{ textAlign: "center" }}>Budgy V2.5 · identifiant {userId.slice(0, 8)}…</p>
     </main>
   );
 }

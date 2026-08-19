@@ -1,85 +1,11 @@
 "use client";
-
-import { ArrowLeft, Info } from "lucide-react";
-import Link from "next/link";
-import { useState } from "react";
-import { V2Icon, V2Switch } from "@/components/ui/v2";
-import { useBudgyData } from "@/lib/data/data-provider";
-import { MODULE_DEFINITIONS } from "@/lib/modules/registry";
-import type { ModuleKey } from "@/types/domain";
-
-/**
- * Réglages → Mes modules (§5).
- * Désactiver un module masque la fonctionnalité : aucune donnée n'est supprimée.
- */
-export default function ModulesSettingsPage() {
-  const { modules, setModules, ready } = useBudgyData();
-  const [selected, setSelected] = useState<ModuleKey[]>(modules);
-  // `modules` peut arriver après le premier rendu : on aligne la sélection tant que
-  // l'utilisateur n'a pas commencé à interagir avec les interrupteurs.
-  const [lastKnownModules, setLastKnownModules] = useState(modules);
-  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-
-  if (ready && modules !== lastKnownModules && status === "idle") {
-    setLastKnownModules(modules);
-    setSelected(modules);
-  }
-
-  const toggle = async (key: ModuleKey) => {
-    const next = selected.includes(key) ? selected.filter((item) => item !== key) : [...selected, key];
-    setSelected(next);
-    setStatus("saving");
-    try {
-      await setModules(next);
-      setStatus("saved");
-    } catch {
-      setSelected(selected);
-      setStatus("error");
-    }
-  };
-
-  return (
-    <main className="page v2-page v2">
-      <div className="spread">
-        <Link className="icon-button" href="/more" aria-label="Retour"><ArrowLeft /></Link>
-        <strong>Mes modules</strong>
-        <span />
-      </div>
-
-      <header>
-        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: "-.02em" }}>Mes modules</h1>
-        <p className="muted" style={{ marginTop: 6 }}>Adaptez Budgy à votre vie. Vous pouvez changer d&apos;avis à tout moment.</p>
-      </header>
-
-      <div className="v2-banner">
-        <Info size={18} style={{ flex: "0 0 auto", marginTop: 1 }} />
-        <span>Désactiver un module masque uniquement la fonctionnalité. Vos données sont conservées et vous pourrez le réactiver à tout moment.</span>
-      </div>
-
-      <section className="v2-card">
-        {MODULE_DEFINITIONS.map((definition) => (
-          <div className="v2-row" key={definition.key}>
-            <V2Icon icon={definition.icon} tone={definition.tone} />
-            <span className="v2-row-main">
-              <strong>{definition.label}</strong>
-              <span>{definition.description}</span>
-            </span>
-            <V2Switch
-              checked={selected.includes(definition.key)}
-              label={`${selected.includes(definition.key) ? "Désactiver" : "Activer"} ${definition.label}`}
-              onChange={() => void toggle(definition.key)}
-            />
-          </div>
-        ))}
-      </section>
-
-      {status === "error" ? <p className="error">La modification n&apos;a pas pu être enregistrée. Réessayez.</p> : null}
-      {status === "saved" ? <p className="positive small" style={{ textAlign: "center" }}>Modules mis à jour.</p> : null}
-      {selected.length === 0 ? (
-        <p className="muted small" style={{ textAlign: "center" }}>
-          Aucun module actif : Budgy n&apos;affichera que l&apos;accueil et vos réglages.
-        </p>
-      ) : null}
-    </main>
-  );
+import { ArrowDown,ArrowUp,GripVertical,Info } from "lucide-react";import { useState } from "react";
+import { useToast } from "@/components/ui/feedback";import { AppPageHeader } from "@/components/ui/premium";import { V2Icon,V2Switch } from "@/components/ui/v2";import { useBudgyData } from "@/lib/data/data-provider";import { MODULE_DEFINITIONS,moduleDefinition } from "@/lib/modules/registry";import type { ModuleKey } from "@/types/domain";
+const move=(items:ModuleKey[],from:number,to:number)=>{const next=[...items];const [item]=next.splice(from,1);if(item)next.splice(to,0,item);return next;};
+export default function ModulesSettingsPage(){const {modules,setModules,ready}=useBudgyData();const [selected,setSelected]=useState<ModuleKey[]>(modules);const [dirty,setDirty]=useState(false);const [lastKnown,setLastKnown]=useState(modules);const [saving,setSaving]=useState(false);const [dragged,setDragged]=useState<ModuleKey|null>(null);const {showToast}=useToast();if(ready&&!dirty&&modules!==lastKnown){setLastKnown(modules);setSelected(modules);}
+ const persist=async(next:ModuleKey[])=>{const previous=selected;setSelected(next);setDirty(true);setSaving(true);try{await setModules(next);showToast({title:"Modules mis à jour",detail:"La navigation s’adapte à votre ordre.",tone:"success"});}catch{setSelected(previous);showToast({title:"Modification impossible",detail:"Vérifiez votre connexion puis réessayez.",tone:"error"});}finally{setSaving(false);}};
+ const toggle=(key:ModuleKey)=>void persist(selected.includes(key)?selected.filter((item)=>item!==key):[...selected,key]);
+ const reorder=(key:ModuleKey,target:ModuleKey)=>{const from=selected.indexOf(key),to=selected.indexOf(target);if(from>=0&&to>=0&&from!==to)void persist(move(selected,from,to));};
+ const inactive=MODULE_DEFINITIONS.filter((definition)=>!selected.includes(definition.key));
+ return <main className="page v2-page v2"><AppPageHeader title="Mes modules" subtitle="Choisissez ce qui compte et l’ordre de votre navigation." backHref="/more"/><div className="v2-banner"><Info size={18}/><span>Les trois premiers modules actifs apparaissent dans la barre principale. Masquer un module ne supprime jamais ses données.</span></div><section><div className="settings-section-title"><h2>Modules actifs</h2><span>{saving?"Enregistrement…":"Glissez pour réordonner"}</span></div><div className="module-order-list">{selected.map((key,index)=>{const definition=moduleDefinition(key);return <article className="module-order-row" draggable onDragStart={()=>setDragged(key)} onDragOver={(event)=>event.preventDefault()} onDrop={()=>{if(dragged)reorder(dragged,key);setDragged(null);}} key={key}><GripVertical className="drag-handle" aria-hidden="true"/><V2Icon icon={definition.icon} tone={definition.tone}/><span className="v2-row-main"><strong>{definition.label}</strong><span>{index<3?`Position ${index+1} dans la navigation`:"Disponible dans Plus"}</span></span><span className="order-buttons"><button className="icon-button" disabled={index===0||saving} aria-label={`Monter ${definition.label}`} onClick={()=>void persist(move(selected,index,index-1))}><ArrowUp size={15}/></button><button className="icon-button" disabled={index===selected.length-1||saving} aria-label={`Descendre ${definition.label}`} onClick={()=>void persist(move(selected,index,index+1))}><ArrowDown size={15}/></button></span><V2Switch checked label={`Désactiver ${definition.label}`} onChange={()=>toggle(key)}/></article>;})}{selected.length===0?<p className="premium-empty-copy">Aucun module actif. L’accueil et les réglages restent accessibles.</p>:null}</div></section>{inactive.length>0?<section><div className="settings-section-title"><h2>Autres modules</h2><span>Réactivables à tout moment</span></div><div className="v2-card">{inactive.map((definition)=><div className="v2-row" key={definition.key}><V2Icon icon={definition.icon} tone={definition.tone}/><span className="v2-row-main"><strong>{definition.label}</strong><span>{definition.description}</span></span><V2Switch checked={false} label={`Activer ${definition.label}`} onChange={()=>toggle(definition.key)}/></div>)}</div></section>:null}</main>;
 }

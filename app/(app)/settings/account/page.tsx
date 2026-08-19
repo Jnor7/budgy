@@ -1,9 +1,11 @@
 "use client";
 
-import { ArrowLeft, Camera, KeyRound } from "lucide-react";
-import Link from "next/link";
+import { Camera, KeyRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Field } from "@/components/ui/modal";
+import { Sheet } from "@/components/ui/modal";
+import { ConfirmDialog, useToast } from "@/components/ui/feedback";
+import { AppPageHeader, SyncBadge } from "@/components/ui/premium";
 import { V2Avatar } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -11,7 +13,7 @@ import { requestPasswordReset } from "@/services/auth";
 import { fullDate } from "@/lib/format";
 
 export default function AccountPage() {
-  const { profile, saveProfile, userId, localMode } = useBudgyData();
+  const { profile, saveProfile, userId, localMode, syncStatus } = useBudgyData();
   const [username, setUsername] = useState(() => profile?.username ?? "");
   // Trace la dernière valeur de profil connue pour détecter son arrivée asynchrone
   // sans écraser une saisie en cours (pattern React officiel : "Adjusting state on prop change").
@@ -20,6 +22,9 @@ export default function AccountPage() {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const [avatarActions, setAvatarActions] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const { showToast } = useToast();
 
   if (profile?.username !== lastKnownUsername) {
     setLastKnownUsername(profile?.username);
@@ -40,7 +45,7 @@ export default function AccountPage() {
     setError("");
     try {
       await saveProfile({ username: trimmed });
-      setStatus("Pseudo mis à jour.");
+      setStatus(""); showToast({ title: "Pseudo mis à jour", tone: "success" });
     } catch {
       setError("Ce pseudo est peut-être déjà pris. Essayez-en un autre.");
     }
@@ -57,7 +62,7 @@ export default function AccountPage() {
     if (uploadError) { setError("La photo n'a pas pu être envoyée."); setStatus(""); return; }
     const { data } = client.storage.from("budgy-avatars").getPublicUrl(path);
     await saveProfile({ avatarUrl: data.publicUrl });
-    setStatus("Photo mise à jour.");
+    setStatus(""); setAvatarActions(false); showToast({ title: "Photo mise à jour", tone: "success" });
   };
 
   const resetPassword = async () => {
@@ -68,18 +73,14 @@ export default function AccountPage() {
 
   return (
     <main className="page v2-page v2">
-      <div className="spread">
-        <Link className="icon-button" href="/more" aria-label="Retour"><ArrowLeft /></Link>
-        <strong>Mon compte</strong>
-        <span />
-      </div>
+      <AppPageHeader title="Mon compte" subtitle="Votre identité et vos accès Budgy." backHref="/more" action={<SyncBadge status={syncStatus} local={localMode} />} />
 
       <section className="v2-card" style={{ display: "grid", justifyItems: "center", gap: 12, textAlign: "center" }}>
         <div style={{ position: "relative" }}>
           <V2Avatar name={profile?.username ?? "Budgy"} url={profile?.avatarUrl || undefined} large />
           <button
             className="fab" style={{ position: "absolute", right: -10, bottom: -8, width: 34, height: 34 }}
-            aria-label="Changer la photo" onClick={() => fileRef.current?.click()}
+            aria-label="Changer la photo" onClick={() => setAvatarActions(true)}
           >
             <Camera size={16} />
           </button>
@@ -122,6 +123,8 @@ export default function AccountPage() {
 
       {error ? <p className="error">{error}</p> : null}
       {status ? <p className="positive small" style={{ textAlign: "center" }}>{status}</p> : null}
+      <Sheet open={avatarActions} title="Photo de profil" onClose={() => setAvatarActions(false)}><div className="form-grid"><button className="button button-primary" onClick={() => fileRef.current?.click()}>Choisir une nouvelle photo</button>{profile?.avatarUrl ? <button className="button button-danger" onClick={() => { setAvatarActions(false); setConfirmRemove(true); }}>Supprimer la photo</button> : null}</div></Sheet>
+      <ConfirmDialog open={confirmRemove} title="Supprimer la photo ?" detail="Votre avatar reviendra à vos initiales. Vous pourrez ajouter une nouvelle photo à tout moment." onCancel={() => setConfirmRemove(false)} onConfirm={() => { setConfirmRemove(false); void saveProfile({ avatarUrl: "" }).then(() => showToast({ title: "Photo supprimée", tone: "success" })); }} />
     </main>
   );
 }

@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { RowMenu } from "@/components/ui/menu";
+import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { Field, Sheet } from "@/components/ui/modal";
 import { V2Avatar, V2Empty, V2Skeleton } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
@@ -31,6 +32,8 @@ export default function RentalsPage() {
   const [note, setNote] = useState("");
   const [debtLabel, setDebtLabel] = useState("");
   const [debtAmount, setDebtAmount] = useState(0);
+  const [pendingDelete, setPendingDelete] = useState<Tenant>();
+  const { showToast } = useToast();
 
   const month = cursor.getMonth() + 1;
   const year = cursor.getFullYear();
@@ -107,6 +110,7 @@ export default function RentalsPage() {
   if (!ready) return <main className="page v2-page v2"><V2Skeleton height={70} /><V2Skeleton height={120} /><V2Skeleton height={200} /></main>;
 
   return (
+    <>
     <main className="page v2-page v2">
       <header className="v2-greet">
         <div>
@@ -172,7 +176,7 @@ export default function RentalsPage() {
                   padding: "4px 10px", borderRadius: 999, fontSize: 12, fontWeight: 750,
                   color: statusColor, background: `color-mix(in srgb, ${statusColor} 12%, white)`,
                 }}>{status}</span>
-                <RowMenu onEdit={() => openTenant(tenant)} onDelete={() => remove("tenants", tenant.id)} />
+                <RowMenu onEdit={() => openTenant(tenant)} onDelete={() => setPendingDelete(tenant)} />
               </div>
             </div>
 
@@ -271,5 +275,7 @@ export default function RentalsPage() {
         </div>
       </Sheet>
     </main>
+      <ConfirmDialog open={Boolean(pendingDelete)} title="Supprimer ce locataire ?" detail={`Le profil de ${pendingDelete?.name ?? "ce locataire"} sera supprimé. Les données de paiement liées peuvent être concernées.`} onCancel={() => setPendingDelete(undefined)} onConfirm={() => { if (pendingDelete) { remove("tenants", pendingDelete.id); showToast({ title: "Locataire supprimé", tone: "success" }); } setPendingDelete(undefined); }} />
+    </>
   );
 }

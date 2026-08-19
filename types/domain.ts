@@ -115,7 +115,7 @@ export interface UserPreferences {
 }
 
 export interface UserModule extends EntityMeta {
-  moduleKey: ModuleKey; enabled: boolean; createdAt: ISODate; updatedAt: ISODate;
+  moduleKey: ModuleKey; enabled: boolean; sortOrder: number; createdAt: ISODate; updatedAt: ISODate;
 }
 export interface TripMember {
   id: UUID; tripId: UUID; userId: UUID; role: TripRole; status: TripMemberStatus;

@@ -80,12 +80,18 @@ export const moduleDefinition = (key: ModuleKey) =>
 
 /** Modules réellement actifs à partir des lignes `user_modules`. */
 export function enabledModuleKeys(modules: UserModule[]): ModuleKey[] {
-  const active = new Set(modules.filter((item) => item.enabled).map((item) => item.moduleKey));
-  return MODULE_KEYS.filter((key) => active.has(key));
+  const fallback = new Map(MODULE_KEYS.map((key, index) => [key, index]));
+  return modules
+    .filter((item) => item.enabled)
+    .sort((a, b) => (a.sortOrder ?? fallback.get(a.moduleKey) ?? 99) - (b.sortOrder ?? fallback.get(b.moduleKey) ?? 99))
+    .map((item) => item.moduleKey);
 }
 
 export const isModuleEnabled = (modules: UserModule[], key: ModuleKey) =>
   modules.some((item) => item.moduleKey === key && item.enabled);
+
+/** La barre mobile garde une hiérarchie stable : Accueil + 3 modules + Plus. */
+export const primaryNavigationModules = (modules: ModuleKey[]) => modules.slice(0, 3);
 
 /** Un compte n'a jamais choisi ses modules : aucune ligne `user_modules`. */
 export const hasConfiguredModules = (modules: UserModule[]) => modules.length > 0;

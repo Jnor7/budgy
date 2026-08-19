@@ -82,7 +82,7 @@ export default function OnboardingPage() {
         )}
       </div>
 
-      {step === 0 ? (
+      <div className="onboarding-slide" key={step}>{step === 0 ? (
         <section className="v2-onboarding-scroll" style={{ display: "grid", alignContent: "center", gap: 18 }}>
           <span className="v2-empty-icon" style={{ width: 76, height: 76 }}><Sparkles size={34} /></span>
           <div>
@@ -119,7 +119,7 @@ export default function OnboardingPage() {
             </p>
           ) : null}
         </section>
-      )}
+      )}</div>
 
       <div style={{ display: "grid", gap: 10 }}>
         {error ? <p className="error">{error}</p> : null}
