@@ -2,7 +2,7 @@
 
 import { ArrowLeftRight, Plus, Receipt, Trash2, UserPlus, Users, Wallet } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Field, Sheet } from "@/components/ui/modal";
+import { Field, FormModal } from "@/components/ui/modal";
 import { AmountField } from "@/components/ui/premium";
 import { V2Avatar, V2Icon } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
@@ -238,7 +238,7 @@ export function TripCollaboration({ trip }: { trip: Trip }) {
         </section>
       ) : null}
 
-      <Sheet
+      <FormModal
         open={inviteOpen} title="Inviter un participant" submitLabel="Envoyer"
         disableSubmit={!handle.trim()} onClose={() => { setInviteOpen(false); setInviteStatus(""); setInviteError(""); }}
         onSubmit={() => void sendInvite()}
@@ -261,9 +261,9 @@ export function TripCollaboration({ trip }: { trip: Trip }) {
           {inviteError ? <p className="error">{inviteError}</p> : null}
           {inviteStatus ? <p className="positive small">{inviteStatus}</p> : null}
         </div>
-      </Sheet>
+      </FormModal>
 
-      <Sheet
+      <FormModal
         open={expenseOpen} title="Nouvelle dépense partagée" submitLabel="Ajouter"
         disableSubmit={!title.trim() || amount <= 0 || sharedWith.length === 0}
         onClose={() => setExpenseOpen(false)} onSubmit={saveExpense}
@@ -274,7 +274,7 @@ export function TripCollaboration({ trip }: { trip: Trip }) {
             <input className="input" value={title} placeholder="Hôtel, restaurant, taxi…" onChange={(event) => setTitle(event.target.value)} />
           </Field>
           <Field label="Montant total">
-            <AmountField value={amount} onChange={setAmount} autoFocus />
+            <AmountField size="modal" value={amount} onChange={setAmount} autoFocus />
           </Field>
           <Field label="Payé par">
             <select className="select" value={payer} onChange={(event) => setPayer(event.target.value)}>
@@ -299,7 +299,7 @@ export function TripCollaboration({ trip }: { trip: Trip }) {
             </p>
           ) : null}
         </div>
-      </Sheet>
+      </FormModal>
     </>
   );
 }

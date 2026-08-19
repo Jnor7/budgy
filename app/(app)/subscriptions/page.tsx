@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { BubbleHeader, Card, MetricCard } from "@/components/ui/card";
 import { RowMenu } from "@/components/ui/menu";
-import { Field, Sheet } from "@/components/ui/modal";
+import { Field, FormModal, FormRow } from "@/components/ui/modal";
 import { AmountField } from "@/components/ui/premium";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { eur } from "@/lib/format";
@@ -36,12 +36,11 @@ export default function SubscriptionsPage() {
         <span className="icon-tile icon-rose"><BellRing size={19}/></span><div className="list-main"><strong>{item.title}</strong><span className="muted small">Le {item.dueDay} · {item.scope} · {item.isActive?"Actif":"En pause"}</span></div><strong className={item.isActive?"accent":"muted"}>{eur.format(item.amount)}</strong><RowMenu onEdit={()=>showEdit(item)} onDelete={()=>remove("subscriptions",item.id)}/>
       </div>)}
     </Card>
-    <Sheet open={open} title={editing?"Modifier l’abonnement":"Nouvel abonnement"} submitLabel={editing?"Enregistrer":"Ajouter"} disableSubmit={!draft.title.trim()||draft.amount<=0} onClose={()=>setOpen(false)} onSubmit={save} icon={BellRing} tone="rose"><div className="form-grid">
+    <FormModal open={open} title={editing?"Modifier l’abonnement":"Nouvel abonnement"} submitLabel={editing?"Enregistrer les modifications":"Ajouter l’abonnement"} disableSubmit={!draft.title.trim()||draft.amount<=0} onClose={()=>setOpen(false)} onSubmit={save} icon={BellRing} tone="rose"><div className="form-grid">
       <Field label="Nom"><input className="input" value={draft.title} placeholder="Netflix, iCloud…" onChange={(e)=>setDraft({...draft,title:e.target.value})}/></Field>
-      <Field label="Montant mensuel"><AmountField value={draft.amount} onChange={(amount)=>setDraft({...draft,amount})} autoFocus /></Field><Field label="Jour de prélèvement"><input className="input" type="number" min="1" max="31" value={draft.dueDay} onChange={(e)=>setDraft({...draft,dueDay:Math.min(31,Math.max(1,Number(e.target.value)))})}/></Field>
-      <div className="grid-2"><Field label="Catégorie"><input className="input" value={draft.category} onChange={(e)=>setDraft({...draft,category:e.target.value})}/></Field><Field label="Scope"><input className="input" value={draft.scope} onChange={(e)=>setDraft({...draft,scope:e.target.value})}/></Field></div>
-      <button className="card-flat spread" onClick={()=>setDraft({...draft,isActive:!draft.isActive})}><span>Abonnement actif</span><span className={`status-dot ${draft.isActive?"active":""}`}>{draft.isActive&&<Check size={14}/>}</span></button>
+      <Field label="Montant mensuel"><AmountField size="modal" value={draft.amount} onChange={(amount)=>setDraft({...draft,amount})} autoFocus /></Field><FormRow><Field label="Jour de prélèvement"><input className="input" type="number" min="1" max="31" value={draft.dueDay} onChange={(e)=>setDraft({...draft,dueDay:Math.min(31,Math.max(1,Number(e.target.value)))})}/></Field><Field label="Catégorie"><input className="input" value={draft.category} onChange={(e)=>setDraft({...draft,category:e.target.value})}/></Field></FormRow><Field label="Compte"><input className="input" value={draft.scope} onChange={(e)=>setDraft({...draft,scope:e.target.value})}/></Field>
+      <button type="button" className="card-flat spread" aria-pressed={draft.isActive} onClick={()=>setDraft({...draft,isActive:!draft.isActive})}><span>Abonnement actif</span><span className={`status-dot ${draft.isActive?"active":""}`}>{draft.isActive&&<Check size={14}/>}</span></button>
       <Field label="Note"><textarea className="textarea" value={draft.note} onChange={(e)=>setDraft({...draft,note:e.target.value})}/></Field>
-    </div></Sheet>
+    </div></FormModal>
   </main>;
 }

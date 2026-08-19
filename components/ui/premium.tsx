@@ -37,7 +37,7 @@ const formatAmountRaw = (value: number) => (value ? String(value).replace(".", "
  */
 export function AmountField({ value, onChange, suffix = "€", size = "hero", placeholder = "0,00", autoFocus, id }: {
   value: number; onChange: (value: number) => void; suffix?: string;
-  size?: "hero" | "compact"; placeholder?: string; autoFocus?: boolean; id?: string;
+  size?: "hero" | "modal" | "compact"; placeholder?: string; autoFocus?: boolean; id?: string;
 }) {
   const [raw, setRaw] = useState(() => formatAmountRaw(value));
   const focused = useRef(false);
@@ -48,7 +48,7 @@ export function AmountField({ value, onChange, suffix = "€", size = "hero", pl
   }, [value]);
 
   return (
-    <div className={`amount-input-wrap ${size === "compact" ? "compact" : ""}`}>
+    <div className={`amount-input-wrap ${size}`}>
       <input
         id={id} type="text" inputMode="decimal" autoComplete="off" autoFocus={autoFocus}
         placeholder={placeholder} value={raw}

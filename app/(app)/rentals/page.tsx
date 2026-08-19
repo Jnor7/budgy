@@ -8,7 +8,7 @@ import { RentDebtSheet } from "@/components/rent-debt-sheet";
 import { RentPaymentSheet } from "@/components/rent-payment-sheet";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { RowMenu } from "@/components/ui/menu";
-import { Field, Sheet } from "@/components/ui/modal";
+import { Field, FormModal, FormRow, Sheet } from "@/components/ui/modal";
 import { V2Avatar, V2Empty, V2Skeleton } from "@/components/ui/v2";
 import { AmountField } from "@/components/ui/premium";
 import { useBudgyData } from "@/lib/data/data-provider";
@@ -117,7 +117,7 @@ export default function RentalsPage() {
         })}
       </div>
 
-      <Sheet open={tenantOpen} title={editing ? "Modifier le locataire" : "Ajouter un locataire"} submitLabel={editing ? "Enregistrer" : "Ajouter"} disableSubmit={!tenantDraft.name.trim() || tenantDraft.monthlyRent <= 0} onClose={() => setTenantOpen(false)} onSubmit={saveTenant} icon={Building2} tone="cyan"><div className="form-grid"><Field label="Loyer mensuel"><AmountField value={tenantDraft.monthlyRent} onChange={(monthlyRent) => setTenantDraft({ ...tenantDraft, monthlyRent })} autoFocus /></Field><Field label="Nom"><input className="input" value={tenantDraft.name} onChange={(event) => setTenantDraft({ ...tenantDraft, name: event.target.value })} /></Field><Field label="Jour d'échéance"><input className="input" type="number" min="1" max="31" value={tenantDraft.dueDay} onChange={(event) => setTenantDraft({ ...tenantDraft, dueDay: Number(event.target.value) })} /></Field><Field label="Note"><textarea className="textarea" value={tenantDraft.note} onChange={(event) => setTenantDraft({ ...tenantDraft, note: event.target.value })} /></Field></div></Sheet>
+      <FormModal open={tenantOpen} title={editing ? "Modifier le locataire" : "Ajouter un locataire"} submitLabel={editing ? "Enregistrer les modifications" : "Ajouter le locataire"} disableSubmit={!tenantDraft.name.trim() || tenantDraft.monthlyRent <= 0} onClose={() => setTenantOpen(false)} onSubmit={saveTenant} icon={Building2} tone="cyan"><div className="form-grid"><Field label="Loyer mensuel"><AmountField size="modal" value={tenantDraft.monthlyRent} onChange={(monthlyRent) => setTenantDraft({ ...tenantDraft, monthlyRent })} autoFocus /></Field><FormRow><Field label="Nom"><input className="input" value={tenantDraft.name} onChange={(event) => setTenantDraft({ ...tenantDraft, name: event.target.value })} /></Field><Field label="Jour d'échéance"><input className="input" type="number" min="1" max="31" value={tenantDraft.dueDay} onChange={(event) => setTenantDraft({ ...tenantDraft, dueDay: Number(event.target.value) })} /></Field></FormRow><Field label="Note"><textarea className="textarea" value={tenantDraft.note} onChange={(event) => setTenantDraft({ ...tenantDraft, note: event.target.value })} /></Field></div></FormModal>
       <Sheet open={quickPayment} title="Choisir un locataire" onClose={() => setQuickPayment(false)}><div className="dense-picker">{data.tenants.map((tenant) => <button className="v2-row" key={tenant.id} onClick={() => { setQuickPayment(false); setPaymentTenant(tenant); }}><V2Avatar name={tenant.name} /><span className="v2-row-main"><strong>{tenant.name}</strong><span>{eur.format(Math.max(due(tenant) - received(tenant), 0))} restant</span></span><Banknote size={18} className="accent" /></button>)}</div></Sheet>
     </main>
 

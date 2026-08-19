@@ -4,7 +4,7 @@ import { BriefcaseBusiness, Check, ChevronRight, Plus, Search, ToggleLeft, Toggl
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { RowMenu } from "@/components/ui/menu";
-import { Field, Sheet } from "@/components/ui/modal";
+import { Field, FormModal } from "@/components/ui/modal";
 import { V2Empty, V2Icon } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { BUSINESS_FEATURES, BUSINESS_TEMPLATES, businessTemplate } from "@/lib/modules/registry";
@@ -118,10 +118,10 @@ export default function GenericBusinessesPage() {
         <p className="muted small" style={{ textAlign: "center" }}>Aucun business ne correspond à cette recherche.</p>
       ) : null}
 
-      <Sheet
+      <FormModal
         open={open}
         title={editing ? "Modifier le business" : "Créer un business"}
-        submitLabel={editing ? "Enregistrer" : "Créer"}
+        submitLabel={editing ? "Enregistrer les modifications" : "Créer le business"}
         disableSubmit={!draft.name.trim()}
         onClose={() => setOpen(false)}
         onSubmit={save}
@@ -167,7 +167,7 @@ export default function GenericBusinessesPage() {
             <textarea className="textarea" value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} />
           </Field>
         </div>
-      </Sheet>
+      </FormModal>
     </main>
   );
 }

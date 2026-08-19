@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { RowMenu } from "@/components/ui/menu";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
-import { Field, Sheet } from "@/components/ui/modal";
+import { Field, FormModal, FormRow } from "@/components/ui/modal";
 import { V2Avatar, V2Empty, V2Skeleton } from "@/components/ui/v2";
 import { AmountField, DateField, FormSection } from "@/components/ui/premium";
 import { useBudgyData } from "@/lib/data/data-provider";
@@ -177,28 +177,27 @@ export default function TripsPage() {
         );
       })}
 
-      <Sheet
+      <FormModal
         open={open} title={editing ? "Modifier le voyage" : "Nouveau voyage"}
-        submitLabel={editing ? "Enregistrer" : "Créer"} disableSubmit={!draft.title.trim()}
+        submitLabel={editing ? "Enregistrer les modifications" : "Créer le voyage"} disableSubmit={!draft.title.trim()}
         onClose={() => setOpen(false)} onSubmit={save}
         icon={Plane} tone="cyan"
       >
         <div className="form-grid">
           <FormSection title="Destination">
-            <Field label="Titre"><input className="input" value={draft.title} placeholder="Dubaï, New York…" onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></Field>
-            <Field label="Destination"><input className="input" value={draft.destinationSummary} onChange={(event) => setDraft({ ...draft, destinationSummary: event.target.value })} /></Field>
+            <FormRow><Field label="Titre"><input className="input" value={draft.title} placeholder="Dubaï, New York…" onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></Field><Field label="Destination"><input className="input" value={draft.destinationSummary} onChange={(event) => setDraft({ ...draft, destinationSummary: event.target.value })} /></Field></FormRow>
           </FormSection>
           <FormSection title="Dates">
-            <div className="grid-2">
+            <FormRow>
               <Field label="Départ"><DateField value={toDateInput(draft.startDate)} onChange={(value) => setDraft({ ...draft, startDate: fromDateInput(value) })} /></Field>
               <Field label="Retour"><DateField value={toDateInput(draft.endDate)} onChange={(value) => setDraft({ ...draft, endDate: fromDateInput(value) })} /></Field>
-            </div>
+            </FormRow>
           </FormSection>
           <FormSection title="Voyageurs et budget">
-            <div className="grid-2">
+            <FormRow>
               <Field label="Voyageurs"><input className="input" type="number" min="1" value={draft.peopleCount} onChange={(event) => setDraft({ ...draft, peopleCount: Number(event.target.value) })} /></Field>
               <Field label="Budget cible"><AmountField size="compact" value={draft.targetBudget} onChange={(targetBudget) => setDraft({ ...draft, targetBudget })} /></Field>
-            </div>
+            </FormRow>
           </FormSection>
           <Field label="Notes"><textarea className="textarea" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} /></Field>
           {editing ? (
@@ -208,7 +207,7 @@ export default function TripsPage() {
             </button>
           ) : null}
         </div>
-      </Sheet>
+      </FormModal>
       <ConfirmDialog open={Boolean(pendingDelete)} title="Supprimer ce voyage ?" detail={`Le voyage « ${pendingDelete?.title ?? ""} » et ses vols, logements, activités et listes seront définitivement supprimés.`} onCancel={() => setPendingDelete(undefined)} onConfirm={() => { if (pendingDelete) deleteTrip(pendingDelete.id); setPendingDelete(undefined); }} />
     </main>
   );

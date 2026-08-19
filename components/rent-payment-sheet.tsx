@@ -3,7 +3,7 @@
 import { Banknote, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/components/ui/feedback";
-import { Field, Sheet } from "@/components/ui/modal";
+import { Field, FormModal } from "@/components/ui/modal";
 import { AmountField } from "@/components/ui/premium";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { totalDueForMonth } from "@/lib/domain/tenants";
@@ -55,10 +55,10 @@ function OpenRentPaymentSheet({ tenant, year, month, onClose }: { tenant: Tenant
   };
 
   return (
-    <Sheet open title="Enregistrer un paiement" submitLabel="Enregistrer" disableSubmit={amount < 0} onClose={onClose} onSubmit={save} icon={Banknote} tone="cyan">
+    <FormModal open title="Enregistrer un paiement" submitLabel="Enregistrer le paiement" disableSubmit={amount < 0} onClose={onClose} onSubmit={save} icon={Banknote} tone="cyan">
       <div className="form-grid">
         <div className="payment-sheet-summary"><span><strong>{monthLabel(new Date(year, month - 1, 1))}</strong><small>{tenant.name}</small></span><span><small>Total dû</small><strong>{eur.format(due)}</strong></span></div>
-        <Field label="Montant du versement"><AmountField value={amount} onChange={setAmount} autoFocus /></Field>
+        <Field label="Montant du versement"><AmountField size="modal" value={amount} onChange={setAmount} autoFocus /></Field>
         <div className="payment-fractions" aria-label="Fraction du paiement">
           {FRACTIONS.map((fraction) => {
             const value = Math.round(due * fraction.value * 100) / 100;
@@ -69,6 +69,6 @@ function OpenRentPaymentSheet({ tenant, year, month, onClose }: { tenant: Tenant
         <Field label="Note"><input className="input" placeholder="Virement, espèces, chèque…" value={note} onChange={(event) => setNote(event.target.value)} /></Field>
         <button className="button-reset-inline" onClick={reset}><RotateCcw size={14} /> Remettre le paiement à 0</button>
       </div>
-    </Sheet>
+    </FormModal>
   );
 }

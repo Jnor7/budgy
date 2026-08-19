@@ -32,7 +32,7 @@ describe("recalibration UX/UI V2.5.2", () => {
     const source = readFileSync(path.join(process.cwd(), "app/(app)/budget/page.tsx"), "utf8");
     expect(source).toContain("budget-balance-card");
     expect(source).toContain("budget-jr-row");
-    expect(source.indexOf('label="Montant"')).toBeLessThan(source.indexOf('title="Détails"'));
+    expect(source.indexOf('label="Montant"')).toBeLessThan(source.indexOf('label="Intitulé"'));
     expect(source).toContain("budget-block-add");
     expect(source).not.toContain("RowMenu");
   });
