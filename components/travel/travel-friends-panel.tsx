@@ -28,16 +28,18 @@ export function TravelFriendsPanel() {
   const close = () => { setHandle(""); setSelectedProfile(undefined); setConfirmRequest(false); setOpen(false); };
   const statusFor = (candidateId: string) => {
     if (friends.some((friend) => friend.userA === candidateId || friend.userB === candidateId)) return "Déjà ami";
-    if (outgoing.some((request) => request.recipientId === candidateId)) return "Demande envoyée";
+    if (outgoing.some((request) => request.recipientId === candidateId)) return "Demande déjà envoyée";
     return undefined;
   };
+  const selectedStatus = selectedProfile ? statusFor(selectedProfile.userId) : undefined;
 
   const addFriend = async () => {
-    if (!selectedProfile || busy) return;
+    if (!selectedProfile || selectedStatus || busy) return;
     setBusy(true);
     try {
       await sendTravelFriendRequest(selectedProfile.username);
-      showToast({ title: "Demande envoyée", detail: `À ${selectedProfile.username}`, tone: "success" });
+      showToast({ title: `Demande envoyée à ${selectedProfile.username}`, tone: "success" });
+      await new Promise((resolve) => window.setTimeout(resolve, 250));
       close();
     } catch {
       showToast({ title: "Demande impossible", detail: localMode ? "Connectez Supabase pour ajouter un ami." : "Vérifiez le pseudo ou une demande existante.", tone: "error" });
@@ -72,10 +74,10 @@ export function TravelFriendsPanel() {
         return <div className="travel-friend-row" key={friend.id}><V2Avatar name={displayName(friendId)} url={avatarUrl(friendId)} /><div><strong>{displayName(friendId)}</strong><span>Ami de voyage</span></div><button aria-label={`Supprimer ${displayName(friendId)}`} onClick={() => setPendingRemoval(friend.id)}><UserMinus size={17} /></button></div>;
       })}
       {outgoing.length > 0 ? <p className="travel-hint">{outgoing.length} demande{outgoing.length > 1 ? "s" : ""} en attente.</p> : null}
-      <FormModal open={open} title="Ajouter un ami de voyage" submitLabel={selectedProfile ? "Confirmer la demande" : "Sélectionner un profil"} disableSubmit={!selectedProfile || busy} closeOnSubmit={false} onClose={close} onSubmit={() => setConfirmRequest(Boolean(selectedProfile))} icon={UserPlus} tone="cyan">
+      <FormModal open={open} title="Ajouter un ami de voyage" submitLabel={selectedProfile && !selectedStatus ? "Confirmer la demande" : selectedStatus ?? "Sélectionner un profil"} disableSubmit={!selectedProfile || Boolean(selectedStatus) || busy} closeOnSubmit={false} onClose={close} onSubmit={() => setConfirmRequest(Boolean(selectedProfile) && !selectedStatus)} icon={UserPlus} tone="cyan">
         <div className="form-grid"><p className="travel-form-intro">Recherche privée à partir de deux caractères, limitée aux profils publics nécessaires.</p><TravelProfileSearch value={handle} onChange={(value) => { setHandle(value); setSelectedProfile(undefined); setConfirmRequest(false); }} onSelect={(candidate) => { setHandle(candidate.username); setSelectedProfile(candidate); setConfirmRequest(true); }} search={searchTravelProfiles} statusFor={(candidate) => statusFor(candidate.userId)} /></div>
       </FormModal>
-      <ConfirmDialog open={confirmRequest && Boolean(selectedProfile)} title={selectedProfile ? `Ajouter ${selectedProfile.username} à vos amis de voyage ?` : "Ajouter cet ami de voyage ?"} detail="Une demande lui sera envoyée. Rien ne sera ajouté sans son accord." content={selectedProfile ? <div className="travel-friend-confirm-profile"><V2Avatar name={selectedProfile.username} url={selectedProfile.avatarUrl} /><strong>{selectedProfile.username}</strong></div> : undefined} confirmLabel={busy ? "Envoi…" : "Envoyer la demande"} confirmTone="primary" onCancel={() => setConfirmRequest(false)} onConfirm={() => void addFriend()} />
+      <ConfirmDialog open={confirmRequest && Boolean(selectedProfile) && !selectedStatus} title={selectedProfile ? `Ajouter ${selectedProfile.username} à vos amis de voyage ?` : "Ajouter cet ami de voyage ?"} detail="Une demande lui sera envoyée. Rien ne sera ajouté sans son accord." content={selectedProfile ? <div className="travel-friend-confirm-profile"><V2Avatar name={selectedProfile.username} url={selectedProfile.avatarUrl} /><strong>{selectedProfile.username}</strong></div> : undefined} confirmLabel={busy ? "Envoi…" : "Envoyer la demande"} confirmTone="primary" onCancel={() => setConfirmRequest(false)} onConfirm={() => void addFriend()} />
       <ConfirmDialog open={Boolean(pendingRemoval)} title="Supprimer cet ami de voyage ?" detail="Vous pourrez lui renvoyer une demande plus tard. Les voyages déjà partagés restent inchangés." confirmLabel="Supprimer" onCancel={() => setPendingRemoval(undefined)} onConfirm={() => { if (pendingRemoval) void removeTravelFriend(pendingRemoval); setPendingRemoval(undefined); }} />
     </section>
   );
