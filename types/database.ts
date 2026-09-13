@@ -1,4 +1,4 @@
-export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+﻿export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export interface Database {
   public: {
@@ -11,6 +11,10 @@ export interface Database {
     Views: Record<string, never>;
     Functions: {
       current_budgy_user_id: {
+        Args: Record<string, never>;
+        Returns: string;
+      };
+      ensure_current_budgy_user: {
         Args: Record<string, never>;
         Returns: string;
       };
@@ -75,3 +79,4 @@ export interface Database {
     CompositeTypes: Record<string, never>;
   };
 }
+
