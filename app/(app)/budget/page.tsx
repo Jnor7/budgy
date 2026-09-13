@@ -4,6 +4,7 @@ import { Car, Check, ChevronLeft, ChevronRight, Coins, Copy, House, Plus, Receip
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Field, FormModal, FormRow } from "@/components/ui/modal";
 import { AmountField, AnimatedSegmented, DateField, FormSection } from "@/components/ui/premium";
+import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 import { SwipeRow } from "@/components/ui/swipe-row";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { useBudgyData } from "@/lib/data/data-provider";
@@ -29,7 +30,7 @@ const iconForEntry = (entry: BudgetEntry): LucideIcon => {
 };
 
 export default function BudgetPage() {
-  const { data, ready, create, update, remove } = useBudgyData();
+  const { data, ready, create, update, remove, reload } = useBudgyData();
   const [selectedMonth, setSelectedMonth] = useState(() => new Date());
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<string>();
@@ -105,7 +106,7 @@ export default function BudgetPage() {
 
   if (!ready) return <main className="page finance-page"><div className="skeleton" style={{ height: 70 }} /><div className="skeleton" style={{ height: 180 }} /><div className="skeleton" /></main>;
 
-  return <main className="page finance-page">
+  return <PullToRefresh onRefresh={reload}><main className="page finance-page">
     <section className="month-control" aria-label="Mois du budget">
       <button className="icon-button" onClick={() => moveMonth(-1)} aria-label="Mois précédent"><ChevronLeft /></button>
       <strong key={selectedMonth.toISOString()} className="month-label">{monthLabel(selectedMonth)}</strong>
@@ -134,5 +135,5 @@ export default function BudgetPage() {
       onClose={() => setOpen(false)} onSubmit={save}
       icon={draft.type === "revenu" ? Coins : WalletCards} tone={draft.type === "revenu" ? "green" : draft.bucket.toLowerCase().includes("charge") ? "orange" : "red"}
     ><div className="form-grid"><FormSection title="Type"><AnimatedSegmented value={draft.type} options={[{ value: "depense", label: "↓ Dépense" }, { value: "revenu", label: "↑ Revenu" }]} onChange={(type) => setDraft({ ...draft, type, bucket: type === "revenu" ? "Rentrée" : "Variable" })} label="Type" /></FormSection><FormSection title="Détails"><FormRow><Field label="Montant"><AmountField size="modal" value={draft.amount} onChange={(amount) => setDraft({ ...draft, amount })} autoFocus /></Field><Field label="Catégorie"><input className="input" value={draft.category} placeholder="Autre" onChange={(event) => setDraft({ ...draft, category: event.target.value })} /></Field></FormRow><div className="form-choice-chips" aria-label="Catégories rapides">{["Logement", "Alimentation", "Transport", "Voyage", "Abonnement"].map((category) => <button type="button" className={draft.category === category ? "active" : ""} aria-pressed={draft.category === category} onClick={() => setDraft({ ...draft, category })} key={category}>{category}</button>)}</div><Field label="Intitulé"><input className="input" autoCapitalize="sentences" value={draft.title} placeholder="Intitulé de la transaction" onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></Field><FormRow><Field label="Date"><DateField value={toDateInput(draft.date)} onChange={(value) => setDraft({ ...draft, date: fromDateInput(value) })} /></Field><Field label="Compte"><input className="input" value={draft.scope} onChange={(event) => setDraft({ ...draft, scope: event.target.value })} /></Field></FormRow><Field label="Groupe"><select className="select" value={draft.bucket} onChange={(event) => setDraft({ ...draft, bucket: event.target.value })}><option>Rentrée</option><option>Charge fixe</option><option>Variable</option><option>Voyage</option></select></Field><Field label="Note"><textarea className="textarea" value={draft.note} placeholder="Optionnel" onChange={(event) => setDraft({ ...draft, note: event.target.value })} /></Field></FormSection>{editing ? <button className="button button-danger" onClick={() => { const entry = data.budgetEntries.find((item) => item.id === editing); if (entry) scheduleDelete(entry); setOpen(false); }}>Supprimer la transaction</button> : null}</div></FormModal>
-  </main>;
+  </main></PullToRefresh>;
 }

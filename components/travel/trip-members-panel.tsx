@@ -1,7 +1,7 @@
 "use client";
 
 import { Clock3, Plus, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/ui/feedback";
 import { Field, FormModal } from "@/components/ui/modal";
 import { V2Avatar } from "@/components/ui/v2";
@@ -10,7 +10,10 @@ import { canManageTripMembers, roleLabel, tripParticipants } from "@/lib/domain/
 import type { Trip } from "@/types/domain";
 
 export function TripMembersPanel({ trip }: { trip: Trip }) {
-  const { data, userId, displayName, avatarUrl, inviteToTrip, remove, localMode } = useBudgyData();
+  const { data, userId, displayName, avatarUrl, inviteToTrip, remove, localMode, registerFastPolling } = useBudgyData();
+  // Ecran fortement collaboratif (membres + invitation) : sondage accelere
+  // tant que cet onglet du voyage reste affiche.
+  useEffect(() => registerFastPolling(), [registerFastPolling]);
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
   const [handle, setHandle] = useState("");

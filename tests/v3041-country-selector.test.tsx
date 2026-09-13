@@ -28,6 +28,7 @@ vi.mock("@/lib/data/data-provider", () => ({
     data: mocks.data, ready: true, userId: "owner", create: mocks.create, update: mocks.update,
     updateTripCoverAndWait: mocks.updateTripCoverAndWait, remove: mocks.remove, reload: mocks.reload,
     loadAirportCountries: mocks.loadAirportCountries, displayName: () => "Moi", avatarUrl: () => "",
+    registerFastPolling: () => () => undefined,
   }),
 }));
 

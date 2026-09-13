@@ -50,7 +50,7 @@ interface DataContextValue {
   saveProfile: (patch: Partial<Profile>) => Promise<void>;
   inviteToTrip: (tripId: string, options: { handle?: string; email?: string; role?: "editor" | "viewer" }) => Promise<Record<string, unknown>>;
   respondInvitation: (invitationId: string, accept: boolean) => Promise<void>;
-  sendTravelFriendRequest: (handle: string) => Promise<Record<string, unknown>>;
+  sendTravelFriendRequest: (handle: string, optimisticProfile?: DirectoryProfile) => Promise<Record<string, unknown>>;
   respondTravelFriendRequest: (requestId: string, accept: boolean) => Promise<void>;
   removeTravelFriend: (friendId: string) => Promise<void>;
   searchTravelProfiles: (query: string) => Promise<DirectoryProfile[]>;
@@ -66,6 +66,14 @@ interface DataContextValue {
    * (dont `importArchive`) peuvent Ãªtre appelÃ©es sans Ã©chouer immÃ©diatement.
    */
   repositoryReady: boolean;
+  /**
+   * Un ecran fortement collaboratif (Amis, Membres du voyage, Voyage partage)
+   * appelle ceci dans un effet au montage et execute la fonction retournee au
+   * demontage. Tant qu'au moins un composant est enregistre, le sondage
+   * d'arriere-plan des donnees Voyages passe d'environ 7s a ~2s. Le reste de
+   * l'application n'est jamais sonde plus vite que necessaire.
+   */
+  registerFastPolling: () => () => void;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -89,6 +97,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
    */
   const [repositoryReady, setRepositoryReady] = useState(false);
   const repositoryRef = useRef<NeonRepository | null>(null);
+  // Compteur d'ecrans collaboratifs actuellement montes (Amis, Membres, Voyage
+  // partage). >0 => le sondage d'arriere-plan accelere de ~7s a ~2s.
+  const fastPollCountRef = useRef(0);
+  // Reveille immediatement le minuteur en cours (annule + reprogramme au bon
+  // delai) quand le mode rapide passe de 0 a >0 : sans ca, un ecran qui
+  // s'enregistre juste apres la programmation du minuteur lent devrait
+  // attendre jusqu'a 7s avant que l'acceleration ne prenne effet.
+  const wakePollRef = useRef<(() => void) | null>(null);
   const pendingInsertsRef = useRef(new Map<string, Promise<void>>());
   const airportCountriesRef = useRef<AirportCountry[] | null>(null);
   const dataRef = useRef(data);
@@ -134,6 +150,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     let pollTimer: number | undefined;
     let reloadInFlight = false;
 
+    // Sondage adaptatif : un setTimeout recursif (au lieu d'un setInterval fixe)
+    // relit fastPollCountRef a chaque tick, donc l'intervalle change des le
+    // prochain passage sans avoir a recreer le minuteur.
+    const schedulePoll = () => {
+      if (cancelled) return;
+      const delay = fastPollCountRef.current > 0 ? 2000 : 7000;
+      pollTimer = window.setTimeout(() => { void refreshCollaborativeData().finally(schedulePoll); }, delay);
+    };
+    // Permet a registerFastPolling() d'interrompre un minuteur lent deja
+    // programme et de reprogrammer immediatement au bon delai.
+    wakePollRef.current = () => {
+      if (pollTimer) window.clearTimeout(pollTimer);
+      schedulePoll();
+    };
+
     const refreshCollaborativeData = async () => {
       if (cancelled || document.visibilityState !== "visible" || reloadInFlight || !repositoryRef.current) return;
       reloadInFlight = true;
@@ -162,7 +193,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       try {
         await reload();
         if (cancelled) return;
-        pollTimer = window.setInterval(() => void refreshCollaborativeData(), 7000);
+        schedulePoll();
         window.addEventListener("focus", refreshCollaborativeData);
         document.addEventListener("visibilitychange", refreshCollaborativeData);
       } catch (reason) {
@@ -174,7 +205,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     /** Session perdue (dÃ©connexion) : on revient Ã  un Ã©tat "configurÃ© mais non connectÃ©". */
     const detachRepository = () => {
       repositoryRef.current = null;
-      if (pollTimer) window.clearInterval(pollTimer);
+      if (pollTimer) window.clearTimeout(pollTimer);
+      wakePollRef.current = null;
       window.removeEventListener("focus", refreshCollaborativeData);
       document.removeEventListener("visibilitychange", refreshCollaborativeData);
       setRepositoryReady(false);
@@ -213,7 +245,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     void initialize();
     return () => {
       cancelled = true;
-      if (pollTimer) window.clearInterval(pollTimer);
+      if (pollTimer) window.clearTimeout(pollTimer);
+      wakePollRef.current = null;
       window.removeEventListener("focus", refreshCollaborativeData);
       document.removeEventListener("visibilitychange", refreshCollaborativeData);
     };
@@ -228,6 +261,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (!repository || !TRAVEL_KEYS.has(key)) return;
     const nextTravel = await repository.loadTravel();
     setData((current) => ({ ...current, ...nextTravel }));
+  }, []);
+
+  // Rafraichissement Voyages cible, reutilise par les actions Amis/Invitations
+  // dediees ci-dessous a la place d'un `reload()` complet (§2 : eviter de
+  // recharger toute la base quand un refresh cible suffit).
+  const refreshTravelNow = useCallback(async () => {
+    const repository = repositoryRef.current;
+    if (!repository) return;
+    const nextTravel = await repository.loadTravel();
+    setData((current) => ({ ...current, ...nextTravel }));
+  }, []);
+
+  const registerFastPolling = useCallback(() => {
+    const wasIdle = fastPollCountRef.current === 0;
+    fastPollCountRef.current += 1;
+    if (wasIdle) wakePollRef.current?.();
+    return () => { fastPollCountRef.current = Math.max(0, fastPollCountRef.current - 1); };
   }, []);
 
   const create = useCallback(<K extends AppDataKey>(key: K, payload: Omit<EntityFor<K>, "id" | "userId">, options?: { userId?: string }) => {
@@ -414,38 +464,122 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const repository = repositoryRef.current;
     if (!repository) throw new Error("Les invitations nécessitent le mode Neon.");
     const result = await repository.inviteToTrip(tripId, options);
-    await reload();
+    // Refresh cible : une invitation ne modifie que les donnees Voyages, pas
+    // besoin d'un reload() complet de toute la base.
+    await refreshTravelNow();
     return result;
-  }, [reload]);
+  }, [refreshTravelNow]);
 
   const respondInvitation = useCallback(async (invitationId: string, accept: boolean) => {
     const repository = repositoryRef.current;
     if (!repository) throw new Error("Les invitations nécessitent le mode Neon.");
-    await repository.respondInvitation(invitationId, accept);
-    await reload();
-  }, [reload]);
+    // Optimiste : la notification correspondante disparait des actions en
+    // attente immediatement (meme mecanisme que markNotificationRead), avant
+    // meme la confirmation reseau. Restauree si l'appel echoue.
+    const previousNotifications = dataRef.current.notifications;
+    const respondedAt = new Date().toISOString();
+    setData((current) => ({
+      ...current,
+      notifications: current.notifications.map((item) =>
+        typeof item.payload?.invitation_id === "string" && item.payload.invitation_id === invitationId && !item.readAt
+          ? { ...item, readAt: respondedAt }
+          : item,
+      ),
+    }));
+    try {
+      await repository.respondInvitation(invitationId, accept);
+      await refreshTravelNow();
+    } catch (reason) {
+      setData((current) => ({ ...current, notifications: previousNotifications }));
+      reportError(reason);
+      throw reason;
+    }
+  }, [refreshTravelNow, reportError]);
 
-  const sendTravelFriendRequest = useCallback(async (handle: string) => {
+  const sendTravelFriendRequest = useCallback(async (handle: string, optimisticProfile?: DirectoryProfile) => {
     const repository = repositoryRef.current;
     if (!repository) throw new Error("Les amis de voyage nécessitent le mode Neon.");
-    const result = await repository.sendTravelFriendRequest(handle);
-    await reload();
-    return result;
-  }, [reload]);
+    // Optimiste seulement si l'appelant a deja resolu le profil cible (recherche
+    // effectuee avant l'envoi) : on connait alors un vrai userId, pas seulement
+    // un pseudo tape, donc la ligne temporaire est fiable.
+    let optimisticId: string | undefined;
+    if (optimisticProfile) {
+      optimisticId = `optimistic-${crypto.randomUUID()}`;
+      const createdAt = new Date().toISOString();
+      const pendingRequest = { id: optimisticId, senderId: userId, recipientId: optimisticProfile.userId, status: "pending" as const, createdAt };
+      setData((current) => ({ ...current, travelFriendRequests: [...current.travelFriendRequests, pendingRequest] }));
+    }
+    try {
+      const result = await repository.sendTravelFriendRequest(handle);
+      await refreshTravelNow();
+      return result;
+    } catch (reason) {
+      if (optimisticId) {
+        const idToRemove = optimisticId;
+        setData((current) => ({ ...current, travelFriendRequests: current.travelFriendRequests.filter((item) => item.id !== idToRemove) }));
+      }
+      reportError(reason);
+      throw reason;
+    }
+  }, [refreshTravelNow, reportError, userId]);
 
   const respondTravelFriendRequest = useCallback(async (requestId: string, accept: boolean) => {
     const repository = repositoryRef.current;
     if (!repository) throw new Error("Les amis de voyage nécessitent le mode Neon.");
-    await repository.respondTravelFriendRequest(requestId, accept);
-    await reload();
-  }, [reload]);
+    const previousRequests = dataRef.current.travelFriendRequests;
+    const previousFriends = dataRef.current.travelFriends;
+    const previousNotifications = dataRef.current.notifications;
+    const request = previousRequests.find((item) => item.id === requestId);
+    const respondedAt = new Date().toISOString();
+    let optimisticFriendId: string | undefined;
+    setData((current) => {
+      let nextFriends = current.travelFriends;
+      if (accept && request) {
+        optimisticFriendId = `optimistic-${crypto.randomUUID()}`;
+        nextFriends = [...nextFriends, { id: optimisticFriendId, userA: request.senderId, userB: request.recipientId, createdAt: respondedAt }];
+      }
+      return {
+        ...current,
+        travelFriendRequests: current.travelFriendRequests.map((item) =>
+          item.id === requestId ? { ...item, status: accept ? ("accepted" as const) : ("declined" as const), respondedAt } : item,
+        ),
+        travelFriends: nextFriends,
+        notifications: current.notifications.map((item) =>
+          typeof item.payload?.friend_request_id === "string" && item.payload.friend_request_id === requestId && !item.readAt
+            ? { ...item, readAt: respondedAt }
+            : item,
+        ),
+      };
+    });
+    try {
+      await repository.respondTravelFriendRequest(requestId, accept);
+      await refreshTravelNow();
+    } catch (reason) {
+      setData((current) => ({
+        ...current,
+        travelFriendRequests: previousRequests,
+        travelFriends: previousFriends,
+        notifications: previousNotifications,
+      }));
+      reportError(reason);
+      throw reason;
+    }
+  }, [refreshTravelNow, reportError]);
 
   const removeTravelFriend = useCallback(async (friendId: string) => {
     const repository = repositoryRef.current;
     if (!repository) throw new Error("Les amis de voyage nécessitent le mode Neon.");
-    await repository.removeTravelFriend(friendId);
-    await reload();
-  }, [reload]);
+    const previousFriends = dataRef.current.travelFriends;
+    setData((current) => ({ ...current, travelFriends: current.travelFriends.filter((item) => item.id !== friendId) }));
+    try {
+      await repository.removeTravelFriend(friendId);
+      await refreshTravelNow();
+    } catch (reason) {
+      setData((current) => ({ ...current, travelFriends: previousFriends }));
+      reportError(reason);
+      throw reason;
+    }
+  }, [refreshTravelNow, reportError]);
 
   const searchTravelProfiles = useCallback(async (query: string) => {
     const normalized = query.trim();
@@ -521,9 +655,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     markNotificationRead,
     neonConfigured,
     repositoryReady,
+    registerFastPolling,
   }), [
     avatarUrl, create, data, directory, displayName, importArchive, inviteToTrip, localMode, markNotificationRead,
-    modules, modulesConfigured, profile, ready, reload, remove, repositoryReady, respondInvitation, saveProfile,
+    modules, modulesConfigured, profile, ready, reload, remove, repositoryReady, registerFastPolling, respondInvitation, saveProfile,
     respondTravelFriendRequest, removeTravelFriend, searchAirportDirectory, loadAirportCountries, searchTravelProfiles, sendTravelFriendRequest,
     setModules, neonConfigured, syncError, syncStatus, update, updateAndWait, updateTripCoverAndWait, userId,
   ]);

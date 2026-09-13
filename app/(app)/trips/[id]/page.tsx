@@ -3,12 +3,13 @@
 import { ArrowLeft, BedDouble, Check, ClipboardCheck, MapPin, Plane, Receipt, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { TravelCover } from "@/components/travel/travel-cover";
 import { TripChecklistPanel } from "@/components/travel/trip-checklist-panel";
 import { TripExpensesPanel } from "@/components/travel/trip-expenses-panel";
 import { TripItineraryPanel, type ItineraryKind } from "@/components/travel/trip-itinerary-panel";
 import { TripMembersPanel } from "@/components/travel/trip-members-panel";
+import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 import { V2Avatar, V2Skeleton } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { canManageTripMembers, roleLabel, tripParticipants, tripRole } from "@/lib/domain/permissions";
@@ -23,7 +24,7 @@ type Tab = "overview" | "itinerary" | "expenses" | "checklist" | "members";
 
 export default function TripDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { data, ready, userId, displayName, avatarUrl, update } = useBudgyData();
+  const { data, ready, userId, displayName, avatarUrl, update, registerFastPolling, reload } = useBudgyData();
   const [tab, setTab] = useState<Tab>("overview");
   const [itineraryRequest, setItineraryRequest] = useState<ItineraryKind>();
   const trip = data.trips.find((item) => item.id === id);
@@ -32,6 +33,16 @@ export default function TripDetailPage() {
   const activities = useMemo(() => data.tripActivities.filter((item) => item.tripId === id), [data.tripActivities, id]);
   const checks = useMemo(() => data.tripChecklistItems.filter((item) => item.tripId === id), [data.tripChecklistItems, id]);
   const expenses = useMemo(() => data.tripExpenses.filter((item) => item.tripId === id), [data.tripExpenses, id]);
+  // Voyage partage : au moins un autre membre accepte. Le sondage accelere
+  // pour tous les onglets (checklist, depenses, membres...) tant que c'est le cas.
+  const sharedMemberCount = useMemo(
+    () => data.tripMembers.filter((item) => item.tripId === id && item.status === "accepted").length,
+    [data.tripMembers, id],
+  );
+  useEffect(() => {
+    if (sharedMemberCount < 2) return undefined;
+    return registerFastPolling();
+  }, [registerFastPolling, sharedMemberCount]);
 
   if (!ready) return <main className="page travel-detail"><V2Skeleton height={340} /><V2Skeleton height={120} /></main>;
   if (!trip) return <main className="page travel-detail"><Link className="travel-back-inline" href="/trips"><ArrowLeft size={18} /> Voyages</Link><section className="travel-empty"><span><MapPin size={25} /></span><h2>Voyage introuvable</h2><p>Il a peut-être été supprimé ou vous n’avez plus accès à ce voyage.</p></section></main>;
@@ -44,7 +55,7 @@ export default function TripDetailPage() {
   const itinerary = buildItinerary(flights, stays, activities);
   const openItineraryForm = (kind: ItineraryKind) => { setItineraryRequest(kind); setTab("itinerary"); };
 
-  return <main className="page travel-detail">
+  return <PullToRefresh onRefresh={reload}><main className="page travel-detail">
     <TravelCover imageUrl={trip.coverImageUrl} destination={trip.title} countryCode={trip.countryCode} className="travel-detail-hero" eager>
       <header><Link href="/trips" aria-label="Retour aux voyages"><ArrowLeft size={20} /></Link>{canManage ? <button aria-label={trip.isCompleted ? "Rouvrir le voyage" : "Marquer comme terminé"} onClick={() => update("trips", trip.id, { isCompleted: !trip.isCompleted })}><Check size={19} /></button> : <span>{role ? roleLabel(role) : ""}</span>}</header>
       <div className="travel-detail-title"><span>{tripCountdown(trip.startDate)}</span><h1>{trip.title} <em>{countryCodeToFlag(trip.countryCode)}</em></h1><p>{tripRangeLabel(trip.startDate, trip.endDate)} · {tripDayCount(trip.startDate, trip.endDate)} jours</p><div>{participants.slice(0, 4).map((participant) => <V2Avatar key={participant.userId} name={displayName(participant.userId)} url={avatarUrl(participant.userId)} />)}{participants.length > 4 ? <b>+{participants.length - 4}</b> : null}</div></div>
@@ -66,7 +77,7 @@ export default function TripDetailPage() {
     {tab === "expenses" ? <TripExpensesPanel trip={trip} /> : null}
     {tab === "checklist" ? <TripChecklistPanel trip={trip} /> : null}
     {tab === "members" ? <TripMembersPanel trip={trip} /> : null}
-  </main>;
+  </main></PullToRefresh>;
 }
 
 function Summary({ icon: Icon, label, value }: { icon: typeof Plane; label: string; value: string }) { return <article><span><Icon size={18} /></span><div><small>{label}</small><b>{value}</b></div></article>; }

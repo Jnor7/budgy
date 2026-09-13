@@ -10,6 +10,7 @@ import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { RowMenu } from "@/components/ui/menu";
 import { Field, FormModal, FormRow } from "@/components/ui/modal";
 import { AmountField, DateField, FormSection } from "@/components/ui/premium";
+import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 import { V2Skeleton } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { canEditTrip, tripParticipants, visibleTrips } from "@/lib/domain/permissions";
@@ -127,7 +128,7 @@ export default function TripsPage() {
   };
 
   if (!ready) return <main className="page travel-page"><V2Skeleton height={82} /><V2Skeleton height={360} /></main>;
-  return <main className="page travel-page">
+  return <PullToRefresh onRefresh={reload}><main className="page travel-page">
     <header className="travel-dashboard-head"><div><span className="travel-eyebrow"><Sparkles size={13} /> Budgy Travel</span><h1>Voyages</h1><p>Préparez, partagez, partez.</p></div><button className="travel-fab" aria-label="Créer un voyage" onClick={startCreate}><Plus /></button></header>
     <div className="travel-segments" role="tablist" aria-label="Filtrer les voyages">{(["upcoming", "past", "shared"] as const).map((value) => <button key={value} role="tab" aria-selected={tab === value} onClick={() => setTab(value)}>{value === "upcoming" ? "À venir" : value === "past" ? "Passés" : "Partagés"}</button>)}</div>
     {hero ? <TripHero trip={hero} spent={spending(hero)} participants={tripParticipants(hero, data.tripMembers).length} canEdit={canEditTrip(hero, data.tripMembers, userId)} canDelete={hero.userId === userId} onEdit={() => startEdit(hero)} onDelete={() => setPendingDelete(hero)} /> : null}
@@ -137,7 +138,7 @@ export default function TripsPage() {
     {showFriends ? <TravelFriendsPanel /> : null}
     <FormModal open={open} title={editing ? "Modifier le voyage" : "Nouveau voyage"} submitLabel={editing ? "Enregistrer" : "Créer le voyage"} disableSubmit={!draft.title.trim() || draft.endDate < draft.startDate} onClose={() => setOpen(false)} onSubmit={save} icon={MapPin} tone="cyan"><div className="form-grid travel-create-form"><FormSection title="Votre voyage"><Field label="Nom du voyage"><input className="input" autoComplete="off" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Vacances au Gabon" /></Field>{suggestions.length > 0 ? <div className="destination-suggestions">{suggestions.map((suggestion) => <button type="button" key={`${suggestion.city}-${suggestion.countryCode}`} onClick={() => setDraft({ ...draft, title: suggestion.city, countryName: suggestion.country, countryCode: suggestion.countryCode })}><MapPin size={15} /><span><b>{suggestion.city}, {suggestion.country}</b><small>{countryCodeToFlag(suggestion.countryCode)} Suggestion</small></span></button>)}</div> : null}<Field label="Pays"><CountrySelector value={draft.countryName} countryCode={draft.countryCode} onInput={(countryName) => setDraft({ ...draft, countryName, countryCode: "" })} onSelect={(country) => setDraft({ ...draft, countryName: country.name, countryCode: country.code })} /></Field>{editing ? <button type="button" className="travel-cover-refresh" data-form-dirty-ignore onClick={() => void refreshEditingCover()} disabled={coverRefreshing}>{coverRefreshing ? "Recherche de la photo…" : "Rafraîchir la photo"}</button> : null}</FormSection><FormSection title="Dates"><FormRow><Field label="Départ"><DateField value={toDateInput(draft.startDate)} onChange={(value) => setDraft({ ...draft, startDate: fromDateInput(value) })} /></Field><Field label="Retour"><DateField value={toDateInput(draft.endDate)} onChange={(value) => setDraft({ ...draft, endDate: fromDateInput(value) })} /></Field></FormRow></FormSection><FormSection title="L’essentiel"><FormRow><Field label="Voyageurs"><div className="travel-number-field"><Users size={16} /><input className="input" type="number" min="1" value={draft.peopleCount} onChange={(event) => setDraft({ ...draft, peopleCount: Math.max(1, Number(event.target.value) || 1) })} /></div></Field><Field label="Budget cible"><AmountField size="compact" value={draft.targetBudget} onChange={(targetBudget) => setDraft({ ...draft, targetBudget })} /></Field></FormRow></FormSection><p className="travel-form-intro">Vols, logements, activités et membres pourront être ajoutés dans le voyage.</p></div></FormModal>
     <ConfirmDialog open={Boolean(pendingDelete)} title="Supprimer ce voyage ?" detail={`« ${pendingDelete?.title ?? ""} » et ses éléments seront définitivement supprimés.`} onCancel={() => setPendingDelete(undefined)} onConfirm={() => { if (pendingDelete) deleteTrip(pendingDelete); setPendingDelete(undefined); }} />
-  </main>;
+  </main></PullToRefresh>;
 }
 
 function TripHero({ trip, spent, participants, canEdit, canDelete, onEdit, onDelete }: { trip: Trip; spent: number; participants: number; canEdit: boolean; canDelete: boolean; onEdit: () => void; onDelete: () => void }) {

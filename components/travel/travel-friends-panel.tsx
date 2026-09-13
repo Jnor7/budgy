@@ -14,8 +14,12 @@ type FriendRequestState = "idle" | "selected" | "sending" | "success" | "error";
 export function TravelFriendsPanel() {
   const {
     data, userId, displayName, avatarUrl, localMode, sendTravelFriendRequest,
-    respondTravelFriendRequest, removeTravelFriend, searchTravelProfiles,
+    respondTravelFriendRequest, removeTravelFriend, searchTravelProfiles, registerFastPolling,
   } = useBudgyData();
+  // Ecran fortement collaboratif : le sondage d'arriere-plan accelere tant que
+  // ce panneau reste monte, pour que les invitations/reponses des amis
+  // apparaissent en quelques secondes plutot qu'au prochain sondage lent.
+  useEffect(() => registerFastPolling(), [registerFastPolling]);
   const [open, setOpen] = useState(false);
   const [handle, setHandle] = useState("");
   const [selectedProfile, setSelectedProfile] = useState<DirectoryProfile>();
@@ -53,7 +57,7 @@ export function TravelFriendsPanel() {
     if (!selectedProfile || selectedStatus || busy) return;
     setRequestState("sending");
     try {
-      await sendTravelFriendRequest(selectedProfile.username);
+      await sendTravelFriendRequest(selectedProfile.username, selectedProfile);
       setRequestState("success");
     } catch {
       setRequestState("error");

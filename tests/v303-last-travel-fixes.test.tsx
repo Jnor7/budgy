@@ -31,6 +31,7 @@ vi.mock("@/lib/data/data-provider", () => ({
     respondTravelFriendRequest: mocks.respond,
     removeTravelFriend: mocks.remove,
     searchTravelProfiles: mocks.search,
+    registerFastPolling: () => () => undefined,
   }),
 }));
 
@@ -106,7 +107,7 @@ describe("Budgy V3.0.3 — confirmation ami", () => {
       await Promise.resolve();
     });
     expect(mocks.send).toHaveBeenCalledOnce();
-    expect(mocks.send).toHaveBeenCalledWith("Kevin");
+    expect(mocks.send).toHaveBeenCalledWith("Kevin", kevin);
     expect(screen.getByText("Demande envoyée !")).toBeTruthy();
   });
 

@@ -40,6 +40,7 @@ vi.mock("@/lib/data/data-provider", () => ({
     reload: mocks.reload,
     displayName: () => "Junior",
     avatarUrl: () => "https://cdn.example/avatar.jpg",
+    registerFastPolling: () => () => undefined,
   }),
 }));
 

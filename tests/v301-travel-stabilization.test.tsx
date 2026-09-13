@@ -28,6 +28,7 @@ vi.mock("@/lib/data/data-provider", () => ({
   useBudgyData: () => ({
     data: mocks.data, ready: true, userId: "owner", create: mocks.create,
     update: mocks.update, updateAndWait: mocks.update, remove: mocks.remove, reload: vi.fn(), displayName: () => "Moi", avatarUrl: () => "",
+    registerFastPolling: () => () => undefined,
   }),
 }));
 

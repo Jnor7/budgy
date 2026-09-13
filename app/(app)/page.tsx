@@ -7,6 +7,7 @@ import {
 import Link from "next/link";
 import { useMemo } from "react";
 import { NotificationCenter } from "@/components/notification-center";
+import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 import { QuickActions } from "@/components/quick-actions";
 import { V2Avatar, V2Donut, V2Empty, V2Skeleton, categoryColor } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
@@ -91,6 +92,7 @@ export default function HomePage() {
     : 0;
 
   return (
+    <PullToRefresh onRefresh={reload}>
     <main className="page v2-page v2">
       <header className="home-brand-header">
         <Link className="home-avatar-link" href="/settings/account" aria-label="Ouvrir mon profil"><V2Avatar name={profile?.username ?? "Budgy"} url={profile?.avatarUrl || undefined} large /></Link>
@@ -227,5 +229,6 @@ export default function HomePage() {
         ) : null}
       </section>
     </main>
+    </PullToRefresh>
   );
 }

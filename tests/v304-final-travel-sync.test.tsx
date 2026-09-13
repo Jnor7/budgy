@@ -34,6 +34,7 @@ vi.mock("@/lib/data/data-provider", () => ({
     respondTravelFriendRequest: mocks.respondTravelFriendRequest, removeTravelFriend: mocks.removeTravelFriend,
     searchTravelProfiles: mocks.searchTravelProfiles, searchAirportDirectory: mocks.searchAirportDirectory,
     displayName: () => "Junior", avatarUrl: () => "",
+    registerFastPolling: () => () => undefined,
   }),
 }));
 

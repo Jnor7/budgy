@@ -884,3 +884,17 @@ input[type=number] { -moz-appearance:textfield; }
 @media (prefers-reduced-motion:reduce) { .travel-progress i,.travel-friends-toggle>svg,.travel-toggle-line i::before { transition:none!important; } }
 .travel-detail { overflow-x:clip; }
 @media (max-width:430px) { .travel-detail-hero { width:calc(100% + 26px);margin-inline:-13px; } }
+
+/* --- Pull-to-refresh generique -------------------------------------------- */
+.pull-to-refresh { position: relative; }
+.pull-to-refresh-indicator {
+  display: flex; align-items: flex-end; justify-content: center;
+  overflow: hidden; color: var(--v2-violet, #8b5cf6);
+  transition: height .2s ease;
+}
+.pull-to-refresh-indicator svg { margin-bottom: 6px; }
+.pull-to-refresh-indicator.is-refreshing svg { opacity: 1; }
+.pull-to-refresh-content { will-change: transform; }
+@media (prefers-reduced-motion: reduce) {
+  .pull-to-refresh-indicator, .pull-to-refresh-content { transition: none !important; }
+}
