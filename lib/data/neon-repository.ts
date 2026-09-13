@@ -14,7 +14,7 @@ export class NeonRepository {
   constructor(private readonly client: NeonPostgrestClient<Database>) {}
 
   async currentBudgyUserId() {
-    const { data, error } = await this.client.rpc("ensure_current_budgy_user", {});
+    const { data, error } = await this.client.rpc("current_budgy_user_id", {});
     if (error) throw error;
     if (typeof data !== "string" || !data) {
       throw new Error("Aucun UUID Budgy canonique n'est associÃ© Ã  cette session Neon.");
@@ -267,4 +267,5 @@ export class NeonRepository {
     };
   }
 }
+
 
