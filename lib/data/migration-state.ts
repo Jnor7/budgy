@@ -28,8 +28,8 @@ export function resolveMigrationAvailability(
 }
 
 export const MIGRATION_AVAILABILITY_MESSAGES: Record<MigrationAvailability, string> = {
-  local: "L’import distant nécessite Supabase. Ce compte fonctionne en mode local : l’import restera sur cet appareil.",
-  connecting: "Connexion à Supabase…",
+  local: "L’import distant nécessite Neon. Ce compte fonctionne en mode local : l’import restera sur cet appareil.",
+  connecting: "Connexion à Neon…",
   "signed-out": "Connectez-vous pour importer vos données.",
   ready: "",
 };

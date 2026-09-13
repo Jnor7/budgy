@@ -105,7 +105,7 @@ describe("Budgy V3.0.1 — stabilisation Travel", () => {
     mocks.create.mockReturnValue(trip);
     render(<ToastProvider><TripsPage /></ToastProvider>);
     fireEvent.click(document.querySelector(".travel-fab") as HTMLButtonElement);
-    fireEvent.change(screen.getByLabelText("Destination"), { target: { value: "Tokyo" } });
+    fireEvent.change(screen.getByLabelText("Nom du voyage"), { target: { value: "Tokyo" } });
     fireEvent.click(screen.getByRole("button", { name: "Créer le voyage" }));
     act(() => vi.advanceTimersByTime(200));
 

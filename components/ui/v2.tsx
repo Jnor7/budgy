@@ -133,7 +133,7 @@ export function V2Avatar({ name, url, large = false }: { name: string; url?: str
     .join("") || "?";
   return (
     <span className={`v2-avatar ${large ? "v2-avatar-lg" : ""}`} title={name}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- avatar Supabase Storage, taille fixe, next/image inutile ici */}
+      {/* eslint-disable-next-line @next/next/no-img-element -- avatar Storage distant, taille fixe, next/image inutile ici */}
       {url ? <img src={url} alt="" /> : initials}
     </span>
   );

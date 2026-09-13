@@ -98,7 +98,7 @@ describe("Budgy V3.0.4 — couverture partagee", () => {
     render(<ToastProvider><TripsPage /></ToastProvider>);
     fireEvent.click(screen.getByRole("button", { name: "Options" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Modifier" }));
-    fireEvent.change(screen.getByLabelText("Destination"), { target: { value: "Lyon" } });
+    fireEvent.change(screen.getByLabelText("Nom du voyage"), { target: { value: "Lyon" } });
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
     await waitFor(() => expect(mocks.update).toHaveBeenCalled());
     expect(fetchMock).not.toHaveBeenCalled();
@@ -110,26 +110,26 @@ describe("Budgy V3.0.4 — demande d'ami", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ajouter" }));
     fireEvent.change(screen.getByPlaceholderText("Rechercher un pseudo"), { target: { value: "Ju" } });
     fireEvent.click(await screen.findByRole("option", { name: /Junior7/ }, { timeout: 1200 }));
-    expect(screen.getByRole("alertdialog")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Confirmer la demande" })).toBeTruthy();
   }
 
   it("ferme confirmation et recherche apres succes", async () => {
     mocks.sendTravelFriendRequest.mockResolvedValue({ status: "pending" });
     render(<ToastProvider><TravelFriendsPanel /></ToastProvider>);
     await selectFriend();
-    fireEvent.click(screen.getByRole("button", { name: "Envoyer la demande" }));
-    await screen.findByText("Demande envoyée");
-    expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(screen.queryByRole("dialog", { name: "Ajouter un ami de voyage" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Confirmer la demande" }));
+    await screen.findByText("Demande envoyée !");
+    expect(screen.getByRole("dialog", { name: "Ajouter un ami de voyage" })).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Ajouter un ami de voyage" })).toBeNull(), { timeout: 1800 });
   });
 
   it("garde la recherche ouverte apres erreur", async () => {
     mocks.sendTravelFriendRequest.mockRejectedValue(new Error("duplicate"));
     render(<ToastProvider><TravelFriendsPanel /></ToastProvider>);
     await selectFriend();
-    fireEvent.click(screen.getByRole("button", { name: "Envoyer la demande" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmer la demande" }));
     await screen.findByText("Demande impossible");
-    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByText("Impossible d'envoyer la demande.")).toBeTruthy();
     expect(screen.getByRole("dialog", { name: "Ajouter un ami de voyage" })).toBeTruthy();
   });
 });

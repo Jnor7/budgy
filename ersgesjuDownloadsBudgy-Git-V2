@@ -1,0 +1,41 @@
+warning: in the working copy of 'app/(app)/more/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(app)/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(app)/settings/migration/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(app)/settings/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/auth/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'components/travel/travel-friends-panel.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'components/travel/trip-members-panel.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'components/ui/v2.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/airports/countries.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/data/data-provider.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/data/migration-state.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/data/neon-repository.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/neon/server-data.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'proxy.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'services/auth.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/data-provider-migration.test.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/v301-travel-stabilization.test.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/v303-last-travel-fixes.test.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/v304-final-travel-sync.test.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/v3041-country-selector.test.tsx', LF will be replaced by CRLF the next time Git touches it
+ app/(app)/more/page.tsx                    | 21 [32m++++++[m[31m----[m
+ app/(app)/page.tsx                         | 15 [32m++++++[m[31m-[m
+ app/(app)/settings/migration/page.tsx      |  2 [32m+[m[31m-[m
+ app/(app)/settings/page.tsx                | 20 [32m+++++++[m[31m---[m
+ app/auth/page.tsx                          |  2 [32m+[m[31m-[m
+ components/travel/travel-friends-panel.tsx |  2 [32m+[m[31m-[m
+ components/travel/trip-members-panel.tsx   |  2 [32m+[m[31m-[m
+ components/ui/v2.tsx                       |  2 [32m+[m[31m-[m
+ lib/airports/countries.ts                  |  2 [32m+[m[31m-[m
+ lib/data/data-provider.tsx                 | 63 [32m+++++++++++++++++[m[31m-------------[m
+ lib/data/migration-state.ts                |  4 [32m+[m[31m-[m
+ lib/data/neon-repository.ts                |  8 [32m++[m[31m--[m
+ lib/neon/server-data.ts                    |  4 [32m+[m[31m-[m
+ proxy.ts                                   | 26 [32m++++++[m[31m------[m
+ services/auth.ts                           | 15 [32m++++[m[31m---[m
+ tests/data-provider-migration.test.tsx     | 42 [32m+++++++++++++[m[31m-------[m
+ tests/v301-travel-stabilization.test.tsx   |  2 [32m+[m[31m-[m
+ tests/v303-last-travel-fixes.test.tsx      |  8 [32m++[m[31m--[m
+ tests/v304-final-travel-sync.test.tsx      | 16 [32m++++[m[31m----[m
+ tests/v3041-country-selector.test.tsx      |  2 [32m+[m[31m-[m
+ 20 files changed, 155 insertions(+), 103 deletions(-)

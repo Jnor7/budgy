@@ -132,7 +132,7 @@ export default function MigrationPage() {
           </button>
           {!canExecute && availability !== "local" && (
             <p className="muted small" style={{ textAlign: "center", marginTop: 8, marginBottom: 0 }}>
-              L’import démarrera automatiquement dès que la connexion Supabase sera prête.
+              L’import démarrera automatiquement dès que la connexion Neon sera prête.
             </p>
           )}
         </Card>

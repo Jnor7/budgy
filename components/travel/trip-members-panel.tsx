@@ -28,7 +28,7 @@ export function TripMembersPanel({ trip }: { trip: Trip }) {
       await inviteToTrip(trip.id, { handle: value.trim(), role });
       showToast({ title: "Invitation envoyée", detail: `${value.trim()} · ${roleLabel(role)}`, tone: "success" });
       setHandle(""); setOpen(false);
-    } catch { showToast({ title: "Invitation impossible", detail: localMode ? "Connectez Supabase pour inviter un membre." : "Vérifiez le pseudo et réessayez.", tone: "error" }); }
+    } catch { showToast({ title: "Invitation impossible", detail: localMode ? "Connectez Neon pour inviter un membre." : "Vérifiez le pseudo et réessayez.", tone: "error" }); }
     finally { setBusy(false); }
   };
 

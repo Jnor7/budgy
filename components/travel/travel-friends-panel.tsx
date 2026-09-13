@@ -57,7 +57,7 @@ export function TravelFriendsPanel() {
       setRequestState("success");
     } catch {
       setRequestState("error");
-      showToast({ title: "Demande impossible", detail: localMode ? "Connectez Supabase pour ajouter un ami." : "Vérifiez le pseudo ou une demande existante.", tone: "error" });
+      showToast({ title: "Demande impossible", detail: localMode ? "Connectez Neon pour ajouter un ami." : "Vérifiez le pseudo ou une demande existante.", tone: "error" });
     }
   };
 

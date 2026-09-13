@@ -14,10 +14,12 @@ export class NeonRepository {
   constructor(private readonly client: NeonPostgrestClient<Database>) {}
 
   async currentBudgyUserId() {
-    const { data, error } = await this.client.rpc("current_budgy_user_id", {});
+    // Idempotent et protégé par verrou transactionnel côté PostgreSQL : un
+    // mapping historique est toujours retourné avant tout provisioning.
+    const { data, error } = await this.client.rpc("ensure_current_budgy_user", {});
     if (error) throw error;
     if (typeof data !== "string" || !data) {
-      throw new Error("Aucun UUID Budgy canonique n'est associÃ© Ã  cette session Neon.");
+      throw new Error("Aucun UUID Budgy canonique n'est associé à cette session Neon.");
     }
     return data;
   }
@@ -55,7 +57,7 @@ export class NeonRepository {
   async update(key: AppDataKey, id: string, patch: Partial<AppEntity>) {
     const { data, error } = await this.client.from(entityTables[key]).update(toDatabaseRow(patch as AppEntity)).eq("id", id).select("id").maybeSingle();
     if (error) throw error;
-    if (!data) throw new Error(`La mise Ã  jour ${entityTables[key]}/${id} n'a affectÃ© aucune ligne.`);
+    if (!data) throw new Error(`La mise à jour ${entityTables[key]}/${id} n'a affecté aucune ligne.`);
   }
 
   async remove(key: AppDataKey, id: string) {

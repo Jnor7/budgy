@@ -1,11 +1,10 @@
 ﻿"use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { authClient } from "@/lib/auth/client";
 import { getNeonDataClient } from "@/lib/neon/client";
 import { hasInvalidNeonMode, usesNeon } from "@/lib/neon/config";
 import { NeonRepository, type RemoteImportResult } from "@/lib/data/neon-repository";
-import { enabledModuleKeys, MODULE_KEYS } from "@/lib/modules/registry";
+import { enabledModuleKeys, modulesForHistoricalData, MODULE_KEYS } from "@/lib/modules/registry";
 import type { AppData, AppDataKey, AppEntity, DirectoryProfile, ModuleKey, Profile, TripCoverPatch } from "@/types/domain";
 import { demoData, emptyData, LOCAL_USER_ID } from "@/lib/data/seed";
 import type { Airport } from "@/lib/airports/airports";
@@ -97,8 +96,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const neonConfigured = !localMode;
 
   const reportError = useCallback((reason: unknown) => {
+    if (process.env.NODE_ENV !== "production") console.error("[budgy-data]", reason);
     setSyncStatus("error");
-    setSyncError(reason instanceof Error ? reason.message : "La synchronisation a Ã©chouÃ©.");
+    setSyncError(reason instanceof Error ? reason.message : "La synchronisation a échoué.");
   }, []);
 
   const reload = useCallback(async () => {
@@ -106,10 +106,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (!repository) return;
     setSyncStatus("loading");
     try {
-      setData(await repository.loadAll());
-      setDirectory(await repository.loadDirectory().catch(() => []));
+      const uid = await repository.currentBudgyUserId();
+      let loaded = await repository.loadAll();
+      const inferred = modulesForHistoricalData(loaded);
+      if (loaded.userModules.length === 0 && inferred.length > 0) {
+        await repository.setModules(uid, inferred);
+        loaded = await repository.loadAll();
+      }
+      setUserId(uid);
+      setData(loaded);
+      setProfile(await repository.loadProfile(uid));
+      setDirectory(await repository.loadDirectory().catch((reason) => {
+        if (process.env.NODE_ENV !== "production") console.warn("[budgy-data] directory unavailable", reason);
+        return [];
+      }));
       setSyncError("");
       setSyncStatus("idle");
+      setRepositoryReady(true);
     } catch (reason) {
       reportError(reason);
       throw reason;
@@ -146,21 +159,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (!client || cancelled) return;
       const repository = new NeonRepository(client);
       repositoryRef.current = repository;
-      const uid = await repository.currentBudgyUserId();
-      setUserId(uid);
-      setSyncStatus("loading");
       try {
-        setData(await repository.loadAll());
-        setProfile(await repository.loadProfile(uid).catch(() => null));
-        setDirectory(await repository.loadDirectory().catch(() => []));
-        setSyncError("");
-        setSyncStatus("idle");
-        if (!cancelled) setRepositoryReady(true);
+        await reload();
+        if (cancelled) return;
         pollTimer = window.setInterval(() => void refreshCollaborativeData(), 7000);
         window.addEventListener("focus", refreshCollaborativeData);
         document.addEventListener("visibilitychange", refreshCollaborativeData);
       } catch (reason) {
-        repositoryRef.current = null;
         if (!cancelled) setRepositoryReady(false);
         reportError(reason);
       }
@@ -182,7 +187,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         const raw = window.localStorage.getItem(STORAGE_KEY);
         try { setData(raw ? parseStoredData(raw) : cloneDemo()); }
         catch { setData(cloneDemo()); }
-        setSyncError(hasInvalidNeonMode ? "Le mode Neon est demandÃ© mais les variables .env sont absentes." : "");
+        setSyncError(hasInvalidNeonMode ? "Le mode Neon est demandé mais les variables .env sont absentes." : "");
         setSyncStatus(hasInvalidNeonMode ? "error" : "idle");
         setReady(true);
         return;
@@ -190,7 +195,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       const client = getNeonDataClient();
       if (!client) {
-        reportError(new Error("Neon n'est pas configurÃ©."));
+        reportError(new Error("Neon n'est pas configuré."));
         setReady(true);
         return;
       }
@@ -331,15 +336,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // "configurÃ© mais pas encore prÃªt" (B) â€” voir lib/data/migration-state.ts.
     if (localMode) {
       throw new Error(
-        "Lâ€™import distant nÃ©cessite Neon. Ce compte fonctionne en mode local : lâ€™import restera sur cet appareil.",
+        "L’import distant nécessite Neon. Ce compte fonctionne en mode local : l’import restera sur cet appareil.",
       );
     }
     const repository = repositoryRef.current;
     if (!repository) {
       throw new Error(
         ready
-          ? "Import impossible : vous devez Ãªtre connectÃ© Ã  Neon. Reconnectez-vous puis rÃ©essayez."
-          : "Import impossible : connexion Ã  Neon en cours, rÃ©essayez dans un instant.",
+          ? "Import impossible : vous devez être connecté à Neon. Reconnectez-vous puis réessayez."
+          : "Import impossible : connexion à Neon en cours, réessayez dans un instant.",
       );
     }
     setSyncStatus("syncing");
@@ -353,8 +358,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [localMode, ready, reload, reportError]);
 
-  const modules = useMemo(() => enabledModuleKeys(data.userModules), [data.userModules]);
-  const modulesConfigured = data.userModules.length > 0;
+  const inferredModules = useMemo(() => modulesForHistoricalData(data), [data]);
+  const modules = useMemo(
+    () => data.userModules.length > 0 ? enabledModuleKeys(data.userModules) : inferredModules,
+    [data.userModules, inferredModules],
+  );
+  const modulesConfigured = data.userModules.length > 0 || inferredModules.length > 0;
 
   const setModules = useCallback(async (keys: ModuleKey[]) => {
     const now = new Date().toISOString();
@@ -403,7 +412,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     options: { handle?: string; email?: string; role?: "editor" | "viewer" },
   ) => {
     const repository = repositoryRef.current;
-    if (!repository) throw new Error("Les invitations nÃ©cessitent le mode Neon.");
+    if (!repository) throw new Error("Les invitations nécessitent le mode Neon.");
     const result = await repository.inviteToTrip(tripId, options);
     await reload();
     return result;
@@ -411,14 +420,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const respondInvitation = useCallback(async (invitationId: string, accept: boolean) => {
     const repository = repositoryRef.current;
-    if (!repository) throw new Error("Les invitations nÃ©cessitent le mode Neon.");
+    if (!repository) throw new Error("Les invitations nécessitent le mode Neon.");
     await repository.respondInvitation(invitationId, accept);
     await reload();
   }, [reload]);
 
   const sendTravelFriendRequest = useCallback(async (handle: string) => {
     const repository = repositoryRef.current;
-    if (!repository) throw new Error("Les amis de voyage nÃ©cessitent le mode Neon.");
+    if (!repository) throw new Error("Les amis de voyage nécessitent le mode Neon.");
     const result = await repository.sendTravelFriendRequest(handle);
     await reload();
     return result;
@@ -426,14 +435,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const respondTravelFriendRequest = useCallback(async (requestId: string, accept: boolean) => {
     const repository = repositoryRef.current;
-    if (!repository) throw new Error("Les amis de voyage nÃ©cessitent le mode Neon.");
+    if (!repository) throw new Error("Les amis de voyage nécessitent le mode Neon.");
     await repository.respondTravelFriendRequest(requestId, accept);
     await reload();
   }, [reload]);
 
   const removeTravelFriend = useCallback(async (friendId: string) => {
     const repository = repositoryRef.current;
-    if (!repository) throw new Error("Les amis de voyage nÃ©cessitent le mode Neon.");
+    if (!repository) throw new Error("Les amis de voyage nécessitent le mode Neon.");
     await repository.removeTravelFriend(friendId);
     await reload();
   }, [reload]);

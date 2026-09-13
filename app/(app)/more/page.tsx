@@ -5,7 +5,7 @@ import {
   Settings2, SlidersHorizontal, UserRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { V2Avatar, V2Icon } from "@/components/ui/v2";
 import { SyncBadge } from "@/components/ui/premium";
 import { useToast } from "@/components/ui/feedback";
@@ -22,13 +22,18 @@ const SECTIONS = [
 
 export default function MorePage() {
   const { data, modules, profile, localMode, syncStatus, reload, userId } = useBudgyData();
-  const router = useRouter();
   const { showToast } = useToast();
+  const [logoutBusy, setLogoutBusy] = useState(false);
 
   const logout = async () => {
-    await signOut();
-    router.replace("/auth");
-    router.refresh();
+    setLogoutBusy(true);
+    try {
+      await signOut();
+      window.location.replace("/auth");
+    } catch (reason) {
+      showToast({ title: "Déconnexion impossible", detail: reason instanceof Error ? reason.message : "Réessayez.", tone: "error" });
+      setLogoutBusy(false);
+    }
   };
 
   return (
@@ -72,15 +77,15 @@ export default function MorePage() {
             <V2Icon icon={RefreshCcw} tone="cyan" />
             <span className="v2-row-main">
               <strong>Actualiser les données</strong>
-              <span>{syncStatus === "syncing" ? "Synchronisation en cours…" : "Recharger depuis Supabase"}</span>
+              <span>{syncStatus === "syncing" ? "Synchronisation en cours…" : "Recharger depuis Neon"}</span>
             </span>
           </button>
         ) : null}
         {!localMode ? (
-          <button className="v2-row" onClick={() => void logout()}>
+          <button className="v2-row" disabled={logoutBusy} onClick={() => void logout()}>
             <V2Icon icon={LogOut} tone="red" />
             <span className="v2-row-main">
-              <strong>Se déconnecter</strong>
+              <strong>{logoutBusy ? "Déconnexion…" : "Se déconnecter"}</strong>
               <span>Fermer la session sur cet appareil</span>
             </span>
           </button>

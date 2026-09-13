@@ -2,39 +2,35 @@ import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { usesNeon } from "@/lib/neon/config";
 
-const ONBOARDING_COOKIE = "budgy_onboarding_done";
-
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  const isAuthRoute = pathname.startsWith("/auth") || pathname.startsWith("/api/auth");
-  const isOnboardingRoute = pathname === "/onboarding";
-  const onboardingDone = request.cookies.get(ONBOARDING_COOKIE)?.value === "1";
+  const isAuthPage = pathname.startsWith("/auth");
+  const isAuthApiRoute = pathname.startsWith("/api/auth");
   const response = NextResponse.next({ request });
   let authenticated = false;
+
+  // Les endpoints officiels Neon Auth doivent rester joignables avec ou sans
+  // session (get-session, token, sign-out, callbacks…).
+  if (isAuthApiRoute) return response;
 
   if (usesNeon) {
     const { data } = await auth.getSession();
     authenticated = Boolean(data?.user);
 
-    if (!authenticated && !isAuthRoute) {
+    if (!authenticated && !isAuthPage) {
       const url = request.nextUrl.clone();
       url.pathname = "/auth";
       url.searchParams.set("next", pathname);
       return NextResponse.redirect(url);
     }
-    if (authenticated && isAuthRoute) {
+    if (authenticated && isAuthPage) {
       const url = request.nextUrl.clone();
-      url.pathname = onboardingDone ? "/" : "/onboarding";
+      // Le cookie d'onboarding est propre au navigateur et ne prouve jamais
+      // qu'un compte Neon est nouveau. L'état métier est résolu côté DataProvider.
+      url.pathname = "/";
       url.search = "";
       return NextResponse.redirect(url);
     }
-  }
-
-  if (!isAuthRoute && !isOnboardingRoute && !onboardingDone) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/onboarding";
-    url.search = "";
-    return NextResponse.redirect(url);
   }
 
   return response;

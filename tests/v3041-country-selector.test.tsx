@@ -96,7 +96,7 @@ describe("Budgy V3.0.4.1 — sélecteur Nouveau/Modifier voyage", () => {
     render(<ToastProvider><TripsPage /></ToastProvider>);
     fireEvent.click(screen.getAllByRole("button", { name: "Créer un voyage" })[0]!);
     await waitFor(() => expect(mocks.loadAirportCountries).toHaveBeenCalled());
-    fireEvent.change(screen.getByLabelText("Destination"), { target: { value: "Libreville" } });
+    fireEvent.change(screen.getByLabelText("Nom du voyage"), { target: { value: "Libreville" } });
     const country = screen.getByRole("combobox", { name: "Pays" }) as HTMLInputElement;
     fireEvent.change(country, { target: { value: "G" } });
     expect(screen.getAllByRole("option").length).toBeLessThanOrEqual(12);

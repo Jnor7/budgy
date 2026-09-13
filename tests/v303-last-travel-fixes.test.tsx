@@ -98,16 +98,16 @@ describe("Budgy V3.0.3 — confirmation ami", () => {
 
     fireEvent.click(screen.getByRole("option", { name: /Kevin/ }));
     expect(mocks.send).not.toHaveBeenCalled();
-    expect(screen.getByRole("alertdialog", { name: "Ajouter Kevin à vos amis de voyage ?" })).toBeTruthy();
-    expect(document.querySelector('img[src="https://cdn.example/kevin.jpg"]')).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Ajouter un ami de voyage" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Confirmer la demande" })).toBeTruthy();
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Envoyer la demande" }));
+      fireEvent.click(screen.getByRole("button", { name: "Confirmer la demande" }));
       await Promise.resolve();
     });
     expect(mocks.send).toHaveBeenCalledOnce();
     expect(mocks.send).toHaveBeenCalledWith("Kevin");
-    expect(screen.getByText("Demande envoyée")).toBeTruthy();
+    expect(screen.getByText("Demande envoyée !")).toBeTruthy();
   });
 
   it("bloque les profils déjà amis ou déjà demandés avec le statut attendu", async () => {

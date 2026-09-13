@@ -19,7 +19,7 @@ import { eur, fullDate, monthLabel } from "@/lib/format";
 const greeting = (hour: number) => (hour < 6 ? "Bonne nuit" : hour < 18 ? "Bonjour" : "Bonsoir");
 
 export default function HomePage() {
-  const { data, ready, isModuleOn, modules, profile, userId } = useBudgyData();
+  const { data, ready, isModuleOn, modules, profile, reload, syncError, syncStatus, userId } = useBudgyData();
   const today = useMemo(() => new Date(), []);
 
   const monthEntries = useMemo(() => entriesForMonth(data.budgetEntries, today), [data.budgetEntries, today]);
@@ -65,6 +65,19 @@ export default function HomePage() {
         <V2Skeleton height={70} />
         <V2Skeleton height={165} />
         <V2Skeleton height={150} />
+      </main>
+    );
+  }
+
+  if (syncStatus === "error") {
+    return (
+      <main className="page v2-page v2">
+        <V2Empty
+          icon={RefreshCcw}
+          title="Impossible de charger vos données"
+          text={syncError || "La connexion à Neon a échoué. Vos données n'ont pas été remplacées."}
+          action={<button className="button button-primary" onClick={() => void reload()}>Réessayer</button>}
+        />
       </main>
     );
   }

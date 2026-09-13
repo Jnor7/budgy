@@ -54,7 +54,7 @@ export function airportCountriesFromCodes(countryCodes: string[]) {
     .sort(compareCountries);
 }
 
-/** Repli local complet fourni par Intl quand Supabase n'est pas disponible. */
+/** Repli local complet fourni par Intl quand Neon n'est pas disponible. */
 export const allAirportCountries = airportCountriesFromCodes(regionCodes);
 
 export function searchAirportCountries(countries: AirportCountry[], query: string, limit = 12) {
