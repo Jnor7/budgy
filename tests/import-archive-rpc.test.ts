@@ -1,8 +1,8 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { createClient } from "@supabase/supabase-js";
+import { NeonPostgrestClient } from "@neondatabase/neon-js";
 import { afterEach, describe, expect, it } from "vitest";
-import { SupabaseRepository } from "@/lib/data/supabase-repository";
+import { NeonRepository } from "@/lib/data/neon-repository";
 import { emptyData } from "@/lib/data/seed";
 
 /**
@@ -16,8 +16,6 @@ import { emptyData } from "@/lib/data/seed";
  * `Authorization`. Un retour à un `fetch()` manuel sans ces en-têtes ferait
  * échouer ce test immédiatement.
  */
-
-const ANON_KEY = "test-anon-key-for-regression";
 
 interface CapturedRequest {
   method?: string;
@@ -51,7 +49,7 @@ function startCapturingServer(respond: (req: CapturedRequest) => { status: numbe
   };
 }
 
-describe("import_budgy_archive — jamais d'appel réseau sans apikey", () => {
+describe("import_budgy_archive — transport Neon Data API", () => {
   let cleanup: (() => Promise<void>) | undefined;
 
   afterEach(async () => {
@@ -59,7 +57,7 @@ describe("import_budgy_archive — jamais d'appel réseau sans apikey", () => {
     cleanup = undefined;
   });
 
-  it("SupabaseRepository.importArchive() envoie apikey + Authorization via supabase.rpc(), sans fetch() manuel", async () => {
+  it("NeonRepository.importArchive() appelle la RPC via le client PostgREST", async () => {
     const harness = startCapturingServer(() => ({
       status: 200,
       body: { inserted: 3, skipped: 1, batch_id: "batch-123", already_imported: false },
@@ -70,20 +68,19 @@ describe("import_budgy_archive — jamais d'appel réseau sans apikey", () => {
     // Client réel, identique dans son fonctionnement à celui produit par
     // `getSupabaseBrowserClient()` en production (@supabase/ssr enveloppe ce
     // même `createClient` sans modifier la gestion des en-têtes).
-    const client = createClient(baseUrl, ANON_KEY);
-    const repository = new SupabaseRepository(client);
+    const client = new NeonPostgrestClient({ dataApiUrl: baseUrl });
+    const repository = new NeonRepository(client);
 
     const result = await repository.importArchive(emptyData, "checksum-abc");
 
     const captured = harness.getCaptured();
     expect(captured).toBeDefined();
     expect(captured?.method).toBe("POST");
-    expect(captured?.url).toBe("/rest/v1/rpc/import_budgy_archive");
+    expect(captured?.url).toBe("/rpc/import_budgy_archive");
 
     // Le cœur de la régression : ces deux en-têtes doivent TOUJOURS être présents.
     // Leur absence est exactement ce qui produit "No API key found in request".
-    expect(captured?.headers.apikey).toBe(ANON_KEY);
-    expect(captured?.headers.authorization).toBe(`Bearer ${ANON_KEY}`);
+    expect(captured?.headers.apikey).toBeUndefined();
 
     // Le corps transporte bien les paramètres RPC attendus, pas une charge vide
     // qui indiquerait un contournement du client officiel.
@@ -103,18 +100,18 @@ describe("import_budgy_archive — jamais d'appel réseau sans apikey", () => {
 
     // `accessToken` simule une session utilisateur active : le SDK utilise alors
     // le JWT de session pour Authorization, tout en gardant `apikey` = clé anonyme.
-    const client = createClient(baseUrl, ANON_KEY, {
-      accessToken: () => Promise.resolve(fakeAccessToken),
-    });
-    const repository = new SupabaseRepository(client);
+    const client = new NeonPostgrestClient({ dataApiUrl: baseUrl, options: { global: {
+      fetch,
+      headers: { authorization: `Bearer ${fakeAccessToken}` },
+    } } });
+    const repository = new NeonRepository(client);
     await repository.importArchive(emptyData, "checksum-xyz");
 
     const captured = harness.getCaptured();
-    expect(captured?.headers.apikey).toBe(ANON_KEY);
     expect(captured?.headers.authorization).toBe(`Bearer ${fakeAccessToken}`);
   });
 
-  it("une erreur Supabase (ex. apikey manquante côté serveur) remonte avec message ET hint exploitables", async () => {
+  it("une erreur Data API remonte avec message ET hint exploitables", async () => {
     const harness = startCapturingServer(() => ({
       status: 400,
       body: { message: "No API key found in request", hint: "No `apikey` request header or url param was found." },
@@ -122,8 +119,8 @@ describe("import_budgy_archive — jamais d'appel réseau sans apikey", () => {
     cleanup = harness.close;
     const baseUrl = await harness.listen();
 
-    const client = createClient(baseUrl, ANON_KEY);
-    const repository = new SupabaseRepository(client);
+    const client = new NeonPostgrestClient({ dataApiUrl: baseUrl });
+    const repository = new NeonRepository(client);
 
     await expect(repository.importArchive(emptyData, "checksum-err")).rejects.toMatchObject({
       message: "No API key found in request",

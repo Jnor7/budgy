@@ -1,14 +1,15 @@
 /**
  * Import reproductible du dump public OurAirports.
  * Conserve les large/medium airports disposant d'un code IATA.
- * Requiert SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY dans l'environnement local.
+ * Requiert DATABASE_URL_UNPOOLED (ou DATABASE_URL) dans l'environnement local.
  */
-const source = process.env.OURAIRPORTS_CSV_URL || "https://davidmegginson.github.io/ourairports-data/airports.csv";
-const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, "");
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+import pg from "pg";
 
-if (!supabaseUrl || !serviceKey) {
-  throw new Error("SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY sont requis pour l’import.");
+const source = process.env.OURAIRPORTS_CSV_URL || "https://davidmegginson.github.io/ourairports-data/airports.csv";
+const connectionString = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error("DATABASE_URL_UNPOOLED ou DATABASE_URL est requis pour l’import.");
 }
 
 function parseCsvLine(line) {
@@ -42,17 +43,28 @@ const rows = lines.map((line) => {
     longitude: Number(row.longitude_deg) || null, type: row.type,
   }));
 
-for (let offset = 0; offset < rows.length; offset += 500) {
-  const batch = rows.slice(offset, offset + 500);
-  const upload = await fetch(`${supabaseUrl}/rest/v1/airports?on_conflict=id`, {
-    method: "POST",
-    headers: {
-      apikey: serviceKey, Authorization: `Bearer ${serviceKey}`,
-      "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal",
-    },
-    body: JSON.stringify(batch),
-  });
-  if (!upload.ok) throw new Error(`Import interrompu à ${offset}: ${upload.status} ${await upload.text()}`);
-  process.stdout.write(`\r${Math.min(offset + batch.length, rows.length)} / ${rows.length} aéroports`);
+const client = new pg.Client({ connectionString });
+await client.connect();
+try {
+  for (let offset = 0; offset < rows.length; offset += 500) {
+    const batch = rows.slice(offset, offset + 500);
+    await client.query(`
+      insert into public.airports
+        (id, ident, iata_code, icao_code, name, municipality, country_code, latitude, longitude, type)
+      select id, ident, iata_code, icao_code, name, municipality, country_code, latitude, longitude, type
+      from jsonb_to_recordset($1::jsonb) as source(
+        id bigint, ident text, iata_code text, icao_code text, name text,
+        municipality text, country_code text, latitude double precision,
+        longitude double precision, type text
+      )
+      on conflict (id) do update set
+        ident = excluded.ident, iata_code = excluded.iata_code, icao_code = excluded.icao_code,
+        name = excluded.name, municipality = excluded.municipality, country_code = excluded.country_code,
+        latitude = excluded.latitude, longitude = excluded.longitude, type = excluded.type
+    `, [JSON.stringify(batch)]);
+    process.stdout.write(`\r${Math.min(offset + batch.length, rows.length)} / ${rows.length} aéroports`);
+  }
+} finally {
+  await client.end();
 }
 process.stdout.write("\nImport OurAirports terminé.\n");

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TripsPage from "@/app/(app)/trips/page";
 import { ToastProvider } from "@/components/ui/feedback";
 import { airportCountriesFromCodes, searchAirportCountries } from "@/lib/airports/countries";
-import { SupabaseRepository } from "@/lib/data/supabase-repository";
+import { NeonRepository as SupabaseRepository } from "@/lib/data/neon-repository";
 import type { Trip } from "@/types/domain";
 
 const countryCodes = ["FR", "GA", "CG", "CD", "CM", "SN", "CI", "MA", "DZ", "TN", "AE", "JP", "US", "CA", "BR", "TH", "MY", "SG"];

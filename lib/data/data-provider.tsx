@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { hasInvalidSupabaseMode, usesSupabase } from "@/lib/supabase/config";
-import { SupabaseRepository, type RemoteImportResult } from "@/lib/data/supabase-repository";
+import { authClient } from "@/lib/auth/client";
+import { getNeonDataClient } from "@/lib/neon/client";
+import { hasInvalidNeonMode, usesNeon } from "@/lib/neon/config";
+import { NeonRepository, type RemoteImportResult } from "@/lib/data/neon-repository";
 import { enabledModuleKeys, MODULE_KEYS } from "@/lib/modules/registry";
 import type { AppData, AppDataKey, AppEntity, DirectoryProfile, ModuleKey, Profile, TripCoverPatch } from "@/types/domain";
 import { demoData, emptyData, LOCAL_USER_ID } from "@/lib/data/seed";
@@ -11,6 +12,10 @@ import type { Airport } from "@/lib/airports/airports";
 import { allAirportCountries, type AirportCountry } from "@/lib/airports/countries";
 
 const STORAGE_KEY = "budgy.local-data.v1";
+const TRAVEL_KEYS = new Set<AppDataKey>([
+  "trips", "flights", "accommodations", "tripActivities", "tripChecklistItems", "tripMembers",
+  "tripInvitations", "notifications", "tripExpenses", "tripExpenseSplits", "travelFriendRequests", "travelFriends",
+]);
 
 type EntityFor<K extends AppDataKey> = AppData[K][number];
 type SyncStatus = "idle" | "loading" | "syncing" | "error";
@@ -22,7 +27,7 @@ interface DataContextValue {
   userId: string;
   syncStatus: SyncStatus;
   syncError: string;
-  /** `options.userId` permet d'attribuer une ligne à un autre participant (parts de dépense partagée). */
+  /** `options.userId` permet d'attribuer une ligne Ã  un autre participant (parts de dÃ©pense partagÃ©e). */
   create: <K extends AppDataKey>(key: K, payload: Omit<EntityFor<K>, "id" | "userId">, options?: { userId?: string }) => EntityFor<K>;
   update: <K extends AppDataKey>(key: K, id: string, patch: Partial<EntityFor<K>>) => void;
   updateAndWait: <K extends AppDataKey>(key: K, id: string, patch: Partial<EntityFor<K>>) => Promise<void>;
@@ -33,7 +38,7 @@ interface DataContextValue {
   resetDemo: () => void;
   reload: () => Promise<void>;
   // --- V2 ---
-  /** Modules réellement activés, dans l'ordre choisi par l'utilisateur. */
+  /** Modules rÃ©ellement activÃ©s, dans l'ordre choisi par l'utilisateur. */
   modules: ModuleKey[];
   isModuleOn: (key: ModuleKey) => boolean;
   /** Aucune ligne user_modules : le compte n'a jamais choisi sa configuration. */
@@ -53,20 +58,20 @@ interface DataContextValue {
   searchAirportDirectory: (query: string) => Promise<Airport[]>;
   loadAirportCountries: () => Promise<AirportCountry[]>;
   markNotificationRead: (id: string) => Promise<void>;
-  /** Alias explicite de `!localMode`, pour ne jamais confondre "configuré" et "prêt". */
-  supabaseConfigured: boolean;
+  /** Alias explicite de `!localMode`, pour ne jamais confondre "configurÃ©" et "prÃªt". */
+  neonConfigured: boolean;
   /**
-   * Un `SupabaseRepository` authentifié existe réellement. Contrairement à `ready`,
-   * qui ne fait que constater la fin du premier essai (succès ou échec), ce booléen
-   * est la seule source de vérité fiable pour savoir si les opérations distantes
-   * (dont `importArchive`) peuvent être appelées sans échouer immédiatement.
+   * Un repository Neon authentifiÃ© existe rÃ©ellement. Contrairement Ã  `ready`,
+   * qui ne fait que constater la fin du premier essai (succÃ¨s ou Ã©chec), ce boolÃ©en
+   * est la seule source de vÃ©ritÃ© fiable pour savoir si les opÃ©rations distantes
+   * (dont `importArchive`) peuvent Ãªtre appelÃ©es sans Ã©chouer immÃ©diatement.
    */
   repositoryReady: boolean;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
 const cloneDemo = () => structuredClone(demoData);
-/** Ajoute les collections introduites après V1 sans demander de réimport local. */
+/** Ajoute les collections introduites aprÃ¨s V1 sans demander de rÃ©import local. */
 const parseStoredData = (raw: string): AppData => ({ ...structuredClone(emptyData), ...JSON.parse(raw) as Partial<AppData> });
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
@@ -78,22 +83,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [directory, setDirectory] = useState<DirectoryProfile[]>([]);
   /**
-   * Miroir réactif de `repositoryRef.current !== null`. Un `useRef` seul ne déclenche
-   * jamais de re-rendu : sans cet état, aucun composant ne peut savoir si le repository
-   * distant est réellement disponible, ce qui a permis au bug de l'écran Migration
-   * (import bloqué avec un message trompeur) — voir docs/BUGFIX_MIGRATION_SUPABASE.md.
+   * Miroir rÃ©actif de `repositoryRef.current !== null`. Un `useRef` seul ne dÃ©clenche
+   * jamais de re-rendu : sans cet Ã©tat, aucun composant ne peut savoir si le repository
+   * distant est rÃ©ellement disponible, ce qui a permis au bug de l'Ã©cran Migration
+   * distant est rÃ©ellement disponible.
    */
   const [repositoryReady, setRepositoryReady] = useState(false);
-  const repositoryRef = useRef<SupabaseRepository | null>(null);
+  const repositoryRef = useRef<NeonRepository | null>(null);
   const pendingInsertsRef = useRef(new Map<string, Promise<void>>());
   const airportCountriesRef = useRef<AirportCountry[] | null>(null);
   const dataRef = useRef(data);
-  const localMode = !usesSupabase;
-  const supabaseConfigured = !localMode;
+  const localMode = !usesNeon;
+  const neonConfigured = !localMode;
 
   const reportError = useCallback((reason: unknown) => {
     setSyncStatus("error");
-    setSyncError(reason instanceof Error ? reason.message : "La synchronisation a échoué.");
+    setSyncError(reason instanceof Error ? reason.message : "La synchronisation a Ã©chouÃ©.");
   }, []);
 
   const reload = useCallback(async () => {
@@ -113,20 +118,35 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    let unsubscribe: (() => void) | undefined;
-    let unsubscribeRealtime: (() => void) | undefined;
-    let realtimeTimer: number | undefined;
+    let pollTimer: number | undefined;
+    let reloadInFlight = false;
 
-    const queueTravelReload = () => {
-      if (realtimeTimer) window.clearTimeout(realtimeTimer);
-      realtimeTimer = window.setTimeout(() => { if (!cancelled) void reload(); }, 180);
+    const refreshCollaborativeData = async () => {
+      if (cancelled || document.visibilityState !== "visible" || reloadInFlight || !repositoryRef.current) return;
+      reloadInFlight = true;
+      try {
+        const repository = repositoryRef.current;
+        const [nextTravel, nextDirectory] = await Promise.all([
+          repository.loadTravel(),
+          repository.loadDirectory().catch(() => []),
+        ]);
+        if (!cancelled) {
+          setData((current) => ({ ...current, ...nextTravel }));
+          setDirectory(nextDirectory);
+        }
+      } catch (reason) {
+        if (!cancelled) reportError(reason);
+      } finally {
+        reloadInFlight = false;
+      }
     };
 
-    /** Crée le repository, charge les données et bascule `repositoryReady` de façon réactive. */
-    const attachRepository = async (client: ReturnType<typeof getSupabaseBrowserClient>, uid: string) => {
+    /** CrÃ©e le repository, charge les donnÃ©es et bascule `repositoryReady` de faÃ§on rÃ©active. */
+    const attachRepository = async (client: ReturnType<typeof getNeonDataClient>) => {
       if (!client || cancelled) return;
-      const repository = new SupabaseRepository(client);
+      const repository = new NeonRepository(client);
       repositoryRef.current = repository;
+      const uid = await repository.currentBudgyUserId();
       setUserId(uid);
       setSyncStatus("loading");
       try {
@@ -136,20 +156,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setSyncError("");
         setSyncStatus("idle");
         if (!cancelled) setRepositoryReady(true);
-        unsubscribeRealtime?.();
-        if (typeof client.channel !== "function") return;
-        const travelChannel = client.channel(`budgy-travel-${uid}`)
-          .on("postgres_changes", { event: "*", schema: "public", table: "trips" }, queueTravelReload)
-          .on("postgres_changes", { event: "*", schema: "public", table: "flights" }, queueTravelReload)
-          .on("postgres_changes", { event: "*", schema: "public", table: "accommodations" }, queueTravelReload)
-          .on("postgres_changes", { event: "*", schema: "public", table: "trip_activities" }, queueTravelReload)
-          .on("postgres_changes", { event: "*", schema: "public", table: "trip_checklist_items" }, queueTravelReload)
-          .on("postgres_changes", { event: "*", schema: "public", table: "trip_members" }, queueTravelReload)
-          .on("postgres_changes", { event: "*", schema: "public", table: "trip_expenses" }, queueTravelReload)
-          .on("postgres_changes", { event: "*", schema: "public", table: "trip_expense_splits" }, queueTravelReload)
-          .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, queueTravelReload)
-          .subscribe();
-        unsubscribeRealtime = () => { void client.removeChannel(travelChannel); };
+        pollTimer = window.setInterval(() => void refreshCollaborativeData(), 7000);
+        window.addEventListener("focus", refreshCollaborativeData);
+        document.addEventListener("visibilitychange", refreshCollaborativeData);
       } catch (reason) {
         repositoryRef.current = null;
         if (!cancelled) setRepositoryReady(false);
@@ -157,11 +166,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    /** Session perdue (déconnexion) : on revient à un état "configuré mais non connecté". */
+    /** Session perdue (dÃ©connexion) : on revient Ã  un Ã©tat "configurÃ© mais non connectÃ©". */
     const detachRepository = () => {
       repositoryRef.current = null;
-      unsubscribeRealtime?.();
-      unsubscribeRealtime = undefined;
+      if (pollTimer) window.clearInterval(pollTimer);
+      window.removeEventListener("focus", refreshCollaborativeData);
+      document.removeEventListener("visibilitychange", refreshCollaborativeData);
       setRepositoryReady(false);
       setProfile(null);
       setDirectory([]);
@@ -172,55 +182,48 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         const raw = window.localStorage.getItem(STORAGE_KEY);
         try { setData(raw ? parseStoredData(raw) : cloneDemo()); }
         catch { setData(cloneDemo()); }
-        setSyncError(hasInvalidSupabaseMode ? "Le mode Supabase est demandé mais les variables .env sont absentes." : "");
-        setSyncStatus(hasInvalidSupabaseMode ? "error" : "idle");
+        setSyncError(hasInvalidNeonMode ? "Le mode Neon est demandÃ© mais les variables .env sont absentes." : "");
+        setSyncStatus(hasInvalidNeonMode ? "error" : "idle");
         setReady(true);
         return;
       }
 
-      const client = getSupabaseBrowserClient();
+      const client = getNeonDataClient();
       if (!client) {
-        reportError(new Error("Supabase n'est pas configuré."));
+        reportError(new Error("Neon n'est pas configurÃ©."));
         setReady(true);
         return;
       }
 
-      // Rattrapage : si la vérification initiale (ci-dessous) est lente, échoue
-      // transitoirement, ou si le token est rafraîchi/la session apparaît plus tard,
-      // cet écouteur (re)construit le repository sans jamais laisser `repositoryReady`
-      // bloqué à `false` alors qu'une session valide existe.
-      const { data: subscription } = client.auth.onAuthStateChange((event, session) => {
-        if (cancelled) return;
-        if (session?.user && !repositoryRef.current) {
-          void attachRepository(client, session.user.id);
-        } else if (!session?.user && repositoryRef.current) {
-          detachRepository();
-        }
-        void event;
-      });
-      unsubscribe = () => subscription.subscription.unsubscribe();
-
-      const { data: authData, error } = await client.auth.getUser();
-      if (cancelled) return;
-      if (error || !authData.user) {
-        // Pas d'erreur définitive : l'écouteur ci-dessus peut encore rattraper la session
-        // (ex. cookies pas tout à fait synchronisés au tout premier rendu).
-        reportError(error ?? new Error("Session Supabase absente."));
-        setReady(true);
-        return;
+      try {
+        await attachRepository(client);
+      } catch (reason) {
+        detachRepository();
+        reportError(reason);
       }
 
-      await attachRepository(client, authData.user.id);
       if (!cancelled) setReady(true);
     };
 
     void initialize();
-    return () => { cancelled = true; unsubscribe?.(); unsubscribeRealtime?.(); if (realtimeTimer) window.clearTimeout(realtimeTimer); };
+    return () => {
+      cancelled = true;
+      if (pollTimer) window.clearInterval(pollTimer);
+      window.removeEventListener("focus", refreshCollaborativeData);
+      document.removeEventListener("visibilitychange", refreshCollaborativeData);
+    };
   }, [localMode, reload, reportError]);
 
   useEffect(() => {
     if (ready && localMode) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }, [data, localMode, ready]);
+
+  const refreshTravelAfterMutation = useCallback(async (key: AppDataKey) => {
+    const repository = repositoryRef.current;
+    if (!repository || !TRAVEL_KEYS.has(key)) return;
+    const nextTravel = await repository.loadTravel();
+    setData((current) => ({ ...current, ...nextTravel }));
+  }, []);
 
   const create = useCallback(<K extends AppDataKey>(key: K, payload: Omit<EntityFor<K>, "id" | "userId">, options?: { userId?: string }) => {
     const entity = { ...payload, id: crypto.randomUUID(), userId: options?.userId ?? userId } as EntityFor<K>;
@@ -228,7 +231,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const repository = repositoryRef.current;
     if (repository) {
       setSyncStatus("syncing");
-      const insertion = repository.insert(key, entity as AppEntity).then(() => {
+      const insertion = repository.insert(key, entity as AppEntity).then(async () => {
+        await refreshTravelAfterMutation(key);
         setSyncError("");
         setSyncStatus("idle");
       }).catch((reason: unknown) => {
@@ -239,7 +243,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       void insertion.finally(() => pendingInsertsRef.current.delete(entity.id));
     }
     return entity;
-  }, [reportError, userId]);
+  }, [refreshTravelAfterMutation, reportError, userId]);
 
   const updateAndWait = useCallback(async <K extends AppDataKey>(key: K, id: string, patch: Partial<EntityFor<K>>) => {
     const previous = dataRef.current[key].find((entity) => entity.id === id);
@@ -253,6 +257,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         : repository.update(key, id, patch as Partial<AppEntity>);
       try {
         await persistence;
+        await refreshTravelAfterMutation(key);
         setSyncError("");
         setSyncStatus("idle");
       } catch (reason) {
@@ -261,7 +266,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         throw reason;
       }
     }
-  }, [reportError]);
+  }, [refreshTravelAfterMutation, reportError]);
 
   const update = useCallback(<K extends AppDataKey>(key: K, id: string, patch: Partial<EntityFor<K>>) => {
     void updateAndWait(key, id, patch).catch(() => undefined);
@@ -306,7 +311,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const repository = repositoryRef.current;
     if (repository) {
       setSyncStatus("syncing");
-      void repository.remove(key, id).then(() => {
+      void repository.remove(key, id).then(async () => {
+        await refreshTravelAfterMutation(key);
         setSyncError("");
         setSyncStatus("idle");
       }).catch((reason: unknown) => {
@@ -318,22 +324,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         reportError(reason);
       });
     }
-  }, [reportError]);
+  }, [refreshTravelAfterMutation, reportError]);
 
   const importArchive = useCallback(async (incoming: AppData, checksum: string) => {
-    // Ordre de vérification volontaire : on distingue "pas configuré" (A) de
-    // "configuré mais pas encore prêt" (B) — voir lib/data/migration-state.ts.
+    // Ordre de vÃ©rification volontaire : on distingue "pas configurÃ©" (A) de
+    // "configurÃ© mais pas encore prÃªt" (B) â€” voir lib/data/migration-state.ts.
     if (localMode) {
       throw new Error(
-        "L’import distant nécessite Supabase. Ce compte fonctionne en mode local : l’import restera sur cet appareil.",
+        "Lâ€™import distant nÃ©cessite Neon. Ce compte fonctionne en mode local : lâ€™import restera sur cet appareil.",
       );
     }
     const repository = repositoryRef.current;
     if (!repository) {
       throw new Error(
         ready
-          ? "Import impossible : vous devez être connecté à Supabase. Reconnectez-vous puis réessayez."
-          : "Import impossible : connexion à Supabase en cours, réessayez dans un instant.",
+          ? "Import impossible : vous devez Ãªtre connectÃ© Ã  Neon. Reconnectez-vous puis rÃ©essayez."
+          : "Import impossible : connexion Ã  Neon en cours, rÃ©essayez dans un instant.",
       );
     }
     setSyncStatus("syncing");
@@ -397,7 +403,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     options: { handle?: string; email?: string; role?: "editor" | "viewer" },
   ) => {
     const repository = repositoryRef.current;
-    if (!repository) throw new Error("Les invitations nécessitent le mode Supabase.");
+    if (!repository) throw new Error("Les invitations nÃ©cessitent le mode Neon.");
     const result = await repository.inviteToTrip(tripId, options);
     await reload();
     return result;
@@ -405,14 +411,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const respondInvitation = useCallback(async (invitationId: string, accept: boolean) => {
     const repository = repositoryRef.current;
-    if (!repository) throw new Error("Les invitations nécessitent le mode Supabase.");
+    if (!repository) throw new Error("Les invitations nÃ©cessitent le mode Neon.");
     await repository.respondInvitation(invitationId, accept);
     await reload();
   }, [reload]);
 
   const sendTravelFriendRequest = useCallback(async (handle: string) => {
     const repository = repositoryRef.current;
-    if (!repository) throw new Error("Les amis de voyage nécessitent le mode Supabase.");
+    if (!repository) throw new Error("Les amis de voyage nÃ©cessitent le mode Neon.");
     const result = await repository.sendTravelFriendRequest(handle);
     await reload();
     return result;
@@ -420,14 +426,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const respondTravelFriendRequest = useCallback(async (requestId: string, accept: boolean) => {
     const repository = repositoryRef.current;
-    if (!repository) throw new Error("Les amis de voyage nécessitent le mode Supabase.");
+    if (!repository) throw new Error("Les amis de voyage nÃ©cessitent le mode Neon.");
     await repository.respondTravelFriendRequest(requestId, accept);
     await reload();
   }, [reload]);
 
   const removeTravelFriend = useCallback(async (friendId: string) => {
     const repository = repositoryRef.current;
-    if (!repository) throw new Error("Les amis de voyage nécessitent le mode Supabase.");
+    if (!repository) throw new Error("Les amis de voyage nÃ©cessitent le mode Neon.");
     await repository.removeTravelFriend(friendId);
     await reload();
   }, [reload]);
@@ -504,13 +510,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     searchAirportDirectory,
     loadAirportCountries,
     markNotificationRead,
-    supabaseConfigured,
+    neonConfigured,
     repositoryReady,
   }), [
     avatarUrl, create, data, directory, displayName, importArchive, inviteToTrip, localMode, markNotificationRead,
     modules, modulesConfigured, profile, ready, reload, remove, repositoryReady, respondInvitation, saveProfile,
     respondTravelFriendRequest, removeTravelFriend, searchAirportDirectory, loadAirportCountries, searchTravelProfiles, sendTravelFriendRequest,
-    setModules, supabaseConfigured, syncError, syncStatus, update, updateAndWait, updateTripCoverAndWait, userId,
+    setModules, neonConfigured, syncError, syncStatus, update, updateAndWait, updateTripCoverAndWait, userId,
   ]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
@@ -521,3 +527,6 @@ export function useBudgyData() {
   if (!context) throw new Error("useBudgyData must be used inside DataProvider");
   return context;
 }
+
+
+

@@ -1,31 +1,20 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import type { Database } from "@/types/database";
-import { supabaseAnonKey, supabaseUrl, usesSupabase } from "@/lib/supabase/config";
+import { auth } from "@/lib/auth/server";
+import { usesNeon } from "@/lib/neon/config";
 
 const ONBOARDING_COOKIE = "budgy_onboarding_done";
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  const isAuthRoute = pathname.startsWith("/auth");
+  const isAuthRoute = pathname.startsWith("/auth") || pathname.startsWith("/api/auth");
   const isOnboardingRoute = pathname === "/onboarding";
   const onboardingDone = request.cookies.get(ONBOARDING_COOKIE)?.value === "1";
-  let response = NextResponse.next({ request });
+  const response = NextResponse.next({ request });
   let authenticated = false;
 
-  if (usesSupabase && supabaseUrl && supabaseAnonKey) {
-    const client = createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (values) => {
-          values.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
-          values.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-        },
-      },
-    });
-    const { data } = await client.auth.getUser();
-    authenticated = Boolean(data.user);
+  if (usesNeon) {
+    const { data } = await auth.getSession();
+    authenticated = Boolean(data?.user);
 
     if (!authenticated && !isAuthRoute) {
       const url = request.nextUrl.clone();

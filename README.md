@@ -1,12 +1,12 @@
 # Budgy
 
-Budgy est le portage PWA de l'application iOS Budget JR. Le projet utilise Next.js App Router, React, TypeScript strict, Tailwind CSS et une architecture Supabase prête à connecter.
+Budgy est le portage PWA de l'application iOS Budget JR. Le projet utilise Next.js App Router, React, TypeScript strict, Tailwind CSS et Neon (Auth, Data API et Storage S3-compatible).
 
 ## Prérequis
 
 - Node.js 20 ou plus récent
 - npm, pnpm ou équivalent
-- Un projet Supabase pour activer les comptes et la synchronisation distante
+- Un projet Neon pour activer les comptes et la synchronisation distante
 
 ## Installation
 
@@ -17,32 +17,31 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Ouvrir ensuite [http://localhost:3000](http://localhost:3000). En mode `auto`, Budgy utilise Supabase si les deux variables sont présentes, sinon des données locales isolées dans `localStorage`.
+Ouvrir ensuite [http://localhost:3000](http://localhost:3000). Le mode `local` conserve des données isolées dans `localStorage`; les modes `auto` et `neon` utilisent Neon.
 
 ## Variables
 
 ```dotenv
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
-NEXT_PUBLIC_BUDGY_DATA_MODE=auto
+DATABASE_URL=
+DATABASE_URL_UNPOOLED=
+NEON_AUTH_BASE_URL=
+NEON_AUTH_JWKS_URL=
+NEON_DATA_API_URL=
+NEON_AUTH_COOKIE_SECRET=
+AWS_ENDPOINT_URL_S3=
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_REGION=
+NEXT_PUBLIC_BUDGY_DATA_MODE=neon
 ```
 
-`NEXT_PUBLIC_BUDGY_DATA_MODE` accepte `auto`, `local` ou `supabase`. Le mode `supabase` sans variables valides affiche une erreur de configuration au lieu de transmettre des données ailleurs.
+`NEXT_PUBLIC_BUDGY_DATA_MODE` accepte `auto`, `local` ou `neon`.
 
-Ne jamais ajouter de clé `service_role` au frontend.
+Les identifiants de base et Storage sont exclusivement utilisés dans les routes serveur.
 
-## Supabase
+## Neon
 
-Les migrations sont dans `supabase/migrations/` et doivent être appliquées dans l'ordre. Elles créent les 21 tables métier, les profils, les préférences, les lots de migration, les index, les politiques RLS, le bucket Storage privé `budgy-attachments` et la RPC transactionnelle d'import ZIP.
-
-Avec Supabase CLI configuré :
-
-```bash
-supabase link --project-ref YOUR_PROJECT_REF
-supabase db push
-```
-
-Exécuter ensuite le script de contrôle `supabase/tests/rls_smoke.sql` avec deux utilisateurs de test. Ne pas appliquer les migrations sur une base contenant des données sans sauvegarde préalable.
+Le runtime accède aux 33 tables via Neon Data API sous RLS. Les migrations historiques restent conservées dans `supabase/migrations/` comme référence et rollback, mais ne sont plus exécutées par l'application.
 
 ## Validation
 
@@ -55,18 +54,18 @@ npm run build
 
 ## Import Budget JR
 
-La route `/settings/migration` accepte `budget-jr-export.zip` au format v1. Le ZIP contient `manifest.json`, les fichiers `data/*.json` et éventuellement `attachments/`. L'import valide le manifeste, calcule un checksum SHA-256, reconstruit les identifiants, transfère les fichiers et ignore les `legacy_id` déjà présents. En mode Supabase, les lignes sont insérées par une RPC PostgreSQL transactionnelle.
+La route `/settings/migration` accepte `budget-jr-export.zip` au format v1. Le ZIP contient `manifest.json`, les fichiers `data/*.json` et éventuellement `attachments/`. L'import valide le manifeste, calcule un checksum SHA-256, reconstruit les identifiants, transfère les fichiers et ignore les `legacy_id` déjà présents. En mode Neon, les lignes sont insérées par une RPC PostgreSQL transactionnelle.
 
 ## Déploiement futur
 
-1. Créer et configurer Supabase.
-2. Appliquer les migrations puis vérifier RLS.
-3. Déclarer les trois variables publiques dans Vercel.
+1. Configurer Neon Auth, Data API et Storage.
+2. Vérifier les fonctions et les politiques RLS.
+3. Déclarer les variables serveur dans Vercel.
 4. Importer le dépôt Git dans Vercel.
 5. Construire avec `npm run build`.
 6. Vérifier Auth redirect URLs, PWA, Storage privé et politiques RLS.
 
-Aucun projet distant Supabase, Vercel ou GitHub n'est créé automatiquement.
+Aucun projet distant Neon, Vercel ou GitHub n'est créé automatiquement.
 
 
 ## Documentation interne

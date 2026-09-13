@@ -10,6 +10,10 @@ export interface Database {
     }>;
     Views: Record<string, never>;
     Functions: {
+      current_budgy_user_id: {
+        Args: Record<string, never>;
+        Returns: string;
+      };
       import_budgy_archive: {
         Args: { p_payload: Json; p_format_version: number; p_checksum?: string | null };
         Returns: Json;

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { NeonPostgrestClient } from "@neondatabase/neon-js";
 import { emptyData } from "@/lib/data/seed";
 import { entityKeys, entityTables, fromDatabaseRow, toDatabasePayload, toDatabaseRow } from "@/lib/data/entity-map";
 import { MODULE_KEYS } from "@/lib/modules/registry";
@@ -10,8 +10,17 @@ import { countryCodeToFlag } from "@/lib/travel/destinations";
 
 export interface RemoteImportResult { inserted: number; skipped: number; batchId?: string; alreadyImported: boolean; }
 
-export class SupabaseRepository {
-  constructor(private readonly client: SupabaseClient<Database>) {}
+export class NeonRepository {
+  constructor(private readonly client: NeonPostgrestClient<Database>) {}
+
+  async currentBudgyUserId() {
+    const { data, error } = await this.client.rpc("current_budgy_user_id", {});
+    if (error) throw error;
+    if (typeof data !== "string" || !data) {
+      throw new Error("Aucun UUID Budgy canonique n'est associé à cette session Neon.");
+    }
+    return data;
+  }
 
   async loadAll(): Promise<AppData> {
     const output = structuredClone(emptyData);
@@ -22,6 +31,20 @@ export class SupabaseRepository {
     }));
     for (const [key, rows] of results) (output[key] as AppEntity[]).push(...rows);
     return output;
+  }
+
+  async loadTravel(): Promise<Partial<AppData>> {
+    const keys: AppDataKey[] = [
+      "trips", "flights", "accommodations", "tripActivities", "tripChecklistItems",
+      "tripMembers", "tripInvitations", "notifications", "tripExpenses",
+      "tripExpenseSplits", "travelFriendRequests", "travelFriends",
+    ];
+    const entries = await Promise.all(keys.map(async (key) => {
+      const { data, error } = await this.client.from(entityTables[key]).select("*");
+      if (error) throw error;
+      return [key, (data ?? []).map((row) => fromDatabaseRow(row as Record<string, unknown>))] as const;
+    }));
+    return Object.fromEntries(entries) as Partial<AppData>;
   }
 
   async insert(key: AppDataKey, entity: AppEntity) {
@@ -139,7 +162,7 @@ export class SupabaseRepository {
     if (error) throw error;
     const persisted = (data ?? [])[0];
     if (!persisted?.cover_image_url || persisted.cover_image_id !== cover.coverImageId) {
-      throw new Error(`La couverture du voyage ${tripId} n'a pas ete confirmee par Supabase.`);
+      throw new Error(`La couverture du voyage ${tripId} n'a pas ete confirmee par Neon.`);
     }
     return fromDatabaseRow(persisted as unknown as Record<string, unknown>);
   }
@@ -221,10 +244,10 @@ export class SupabaseRepository {
    * Import de l'archive Budget JR via la fonction SQL `import_budgy_archive`.
    *
    * IMPORTANT : cet appel DOIT rester `this.client.rpc(...)` — jamais un `fetch()`
-   * manuel vers `/rest/v1/rpc/import_budgy_archive`. Le client Supabase partagé
-   * (voir lib/supabase/client.ts) attache automatiquement l'en-tête `apikey` et le
+   * manuel vers `/rest/v1/rpc/import_budgy_archive`. Le client Neon partagé
+   * (voir lib/neon/client.ts) attache automatiquement l'en-tête `apikey` et le
    * JWT de session à CHAQUE requête via son wrapper interne `fetchWithAuth` — un
-   * fetch manuel perdrait ces deux en-têtes et produirait l'erreur Supabase
+   * fetch manuel perdrait ces deux en-têtes et produirait l'erreur Neon
    * "No API key found in request". Voir tests/import-archive-rpc.test.ts pour la
    * vérification de non-régression contre un vrai serveur HTTP local.
    */

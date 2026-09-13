@@ -8,12 +8,12 @@ import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { AppPageHeader, SyncBadge } from "@/components/ui/premium";
 import { V2Avatar } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { authClient } from "@/lib/auth/client";
 import { requestPasswordReset } from "@/services/auth";
 import { fullDate } from "@/lib/format";
 
 export default function AccountPage() {
-  const { profile, saveProfile, userId, localMode, syncStatus } = useBudgyData();
+  const { profile, saveProfile, localMode, syncStatus } = useBudgyData();
   const [username, setUsername] = useState(() => profile?.username ?? "");
   // Trace la dernière valeur de profil connue pour détecter son arrivée asynchrone
   // sans écraser une saisie en cours (pattern React officiel : "Adjusting state on prop change").
@@ -33,8 +33,8 @@ export default function AccountPage() {
 
   useEffect(() => {
     let cancelled = false;
-    void getSupabaseBrowserClient()?.auth.getUser().then(({ data }) => {
-      if (!cancelled) setEmail(data.user?.email ?? "");
+    void authClient.getSession().then(({ data }) => {
+      if (!cancelled) setEmail(data?.user?.email ?? "");
     });
     return () => { cancelled = true; };
   }, []);
@@ -52,16 +52,15 @@ export default function AccountPage() {
   };
 
   const uploadAvatar = async (file: File) => {
-    const client = getSupabaseBrowserClient();
-    if (!client) { setError("L'avatar nécessite le mode Supabase."); return; }
+    if (localMode) { setError("L'avatar nécessite le mode Neon."); return; }
     setError("");
     setStatus("Envoi de la photo…");
-    const extension = file.name.split(".").pop()?.toLowerCase() ?? "png";
-    const path = `${userId}/avatar-${Date.now()}.${extension}`;
-    const { error: uploadError } = await client.storage.from("budgy-avatars").upload(path, file, { upsert: true });
-    if (uploadError) { setError("La photo n'a pas pu être envoyée."); setStatus(""); return; }
-    const { data } = client.storage.from("budgy-avatars").getPublicUrl(path);
-    await saveProfile({ avatarUrl: data.publicUrl });
+    const body = new FormData();
+    body.set("file", file);
+    const response = await fetch("/api/storage/avatar", { method: "POST", body });
+    const result = await response.json() as { url?: string };
+    if (!response.ok || !result.url) { setError("La photo n'a pas pu être envoyée."); setStatus(""); return; }
+    await saveProfile({ avatarUrl: result.url });
     setStatus(""); setAvatarActions(false); showToast({ title: "Photo mise à jour", tone: "success" });
   };
 

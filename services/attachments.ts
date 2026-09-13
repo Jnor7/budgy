@@ -1,9 +1,3 @@
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-
-const BUCKET = "budgy-attachments";
-
-const safeName = (name: string) => name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-");
-
 const readDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = () => resolve(String(reader.result));
@@ -17,27 +11,28 @@ export async function uploadAttachmentFile(file: File, userId: string, localMode
     return readDataUrl(file);
   }
   if (file.size > 10_000_000) throw new Error("Le fichier doit faire moins de 10 Mo.");
-  const client = getSupabaseBrowserClient();
-  if (!client) throw new Error("Supabase n’est pas configuré.");
-  const path = `${userId}/${crypto.randomUUID()}-${safeName(file.name)}`;
-  const { error } = await client.storage.from(BUCKET).upload(path, file, { contentType:file.type || "application/octet-stream", upsert:false });
-  if (error) throw error;
-  return path;
+  void userId;
+  const body = new FormData();
+  body.set("file", file);
+  const response = await fetch("/api/storage/attachments", { method: "POST", body });
+  const result = await response.json() as { path?: string; error?: string };
+  if (!response.ok || !result.path) throw new Error(result.error ?? "Envoi du fichier impossible.");
+  return result.path;
 }
 
 export async function attachmentPreviewUrl(storagePath: string, localMode: boolean) {
   if (localMode || storagePath.startsWith("data:")) return storagePath;
-  const client = getSupabaseBrowserClient();
-  if (!client) throw new Error("Supabase n’est pas configuré.");
-  const { data, error } = await client.storage.from(BUCKET).createSignedUrl(storagePath, 60 * 15);
-  if (error) throw error;
-  return data.signedUrl;
+  const response = await fetch(`/api/storage/attachments?path=${encodeURIComponent(storagePath)}`);
+  const result = await response.json() as { url?: string; error?: string };
+  if (!response.ok || !result.url) throw new Error(result.error ?? "Aperçu du fichier impossible.");
+  return result.url;
 }
 
 export async function deleteAttachmentFile(storagePath: string, localMode: boolean) {
   if (localMode || storagePath.startsWith("data:")) return;
-  const client = getSupabaseBrowserClient();
-  if (!client) throw new Error("Supabase n’est pas configuré.");
-  const { error } = await client.storage.from(BUCKET).remove([storagePath]);
-  if (error) throw error;
+  const response = await fetch(`/api/storage/attachments?path=${encodeURIComponent(storagePath)}`, { method: "DELETE" });
+  if (!response.ok) {
+    const result = await response.json() as { error?: string };
+    throw new Error(result.error ?? "Suppression du fichier impossible.");
+  }
 }

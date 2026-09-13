@@ -1,0 +1,4 @@
+# Les sauvegardes contiennent des données personnelles et ne doivent jamais être versionnées.
+*
+!.gitignore
+!README.md

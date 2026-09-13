@@ -8,7 +8,7 @@ import { ToastProvider } from "@/components/ui/feedback";
 import { TravelFriendsPanel } from "@/components/travel/travel-friends-panel";
 import { airportCountryCodesMatching, airportCountryName } from "@/lib/airports/countries";
 import { searchAirports } from "@/lib/airports/airports";
-import { SupabaseRepository } from "@/lib/data/supabase-repository";
+import { NeonRepository as SupabaseRepository } from "@/lib/data/neon-repository";
 import type { Airport } from "@/lib/airports/airports";
 import type { Trip } from "@/types/domain";
 
