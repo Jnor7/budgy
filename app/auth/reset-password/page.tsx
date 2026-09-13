@@ -44,9 +44,15 @@ export default function ResetPasswordPage() {
       }
 
       setMessage("Mot de passe mis à jour. Vous pouvez maintenant vous connecter.");
-    } catch {
-      setMessage("Impossible de modifier le mot de passe.");
-    } finally {
+    } catch (reason) {
+  console.error("[RESET PASSWORD ERROR]", reason);
+
+  setMessage(
+    reason instanceof Error
+      ? reason.message
+      : "Impossible de modifier le mot de passe."
+  );
+} finally {
       setBusy(false);
     }
   };
