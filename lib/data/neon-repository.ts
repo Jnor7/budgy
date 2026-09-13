@@ -1,4 +1,4 @@
-import type { NeonPostgrestClient } from "@neondatabase/neon-js";
+﻿import type { NeonPostgrestClient } from "@neondatabase/neon-js";
 import { emptyData } from "@/lib/data/seed";
 import { entityKeys, entityTables, fromDatabaseRow, toDatabasePayload, toDatabaseRow } from "@/lib/data/entity-map";
 import { MODULE_KEYS } from "@/lib/modules/registry";
@@ -14,10 +14,10 @@ export class NeonRepository {
   constructor(private readonly client: NeonPostgrestClient<Database>) {}
 
   async currentBudgyUserId() {
-    const { data, error } = await this.client.rpc("current_budgy_user_id", {});
+    const { data, error } = await this.client.rpc("ensure_current_budgy_user", {});
     if (error) throw error;
     if (typeof data !== "string" || !data) {
-      throw new Error("Aucun UUID Budgy canonique n'est associé à cette session Neon.");
+      throw new Error("Aucun UUID Budgy canonique n'est associÃ© Ã  cette session Neon.");
     }
     return data;
   }
@@ -55,7 +55,7 @@ export class NeonRepository {
   async update(key: AppDataKey, id: string, patch: Partial<AppEntity>) {
     const { data, error } = await this.client.from(entityTables[key]).update(toDatabaseRow(patch as AppEntity)).eq("id", id).select("id").maybeSingle();
     if (error) throw error;
-    if (!data) throw new Error(`La mise à jour ${entityTables[key]}/${id} n'a affecté aucune ligne.`);
+    if (!data) throw new Error(`La mise Ã  jour ${entityTables[key]}/${id} n'a affectÃ© aucune ligne.`);
   }
 
   async remove(key: AppDataKey, id: string) {
@@ -107,7 +107,7 @@ export class NeonRepository {
     if (error) throw error;
   }
 
-  /** Annuaire des co-voyageurs. La policy RLS limite déjà le périmètre visible. */
+  /** Annuaire des co-voyageurs. La policy RLS limite dÃ©jÃ  le pÃ©rimÃ¨tre visible. */
   async loadDirectory(): Promise<DirectoryProfile[]> {
     const { data, error } = await this.client.from("profiles").select("user_id,username,avatar_url");
     if (error) throw error;
@@ -243,13 +243,13 @@ export class NeonRepository {
   /**
    * Import de l'archive Budget JR via la fonction SQL `import_budgy_archive`.
    *
-   * IMPORTANT : cet appel DOIT rester `this.client.rpc(...)` — jamais un `fetch()`
-   * manuel vers `/rest/v1/rpc/import_budgy_archive`. Le client Neon partagé
-   * (voir lib/neon/client.ts) attache automatiquement l'en-tête `apikey` et le
-   * JWT de session à CHAQUE requête via son wrapper interne `fetchWithAuth` — un
-   * fetch manuel perdrait ces deux en-têtes et produirait l'erreur Neon
+   * IMPORTANT : cet appel DOIT rester `this.client.rpc(...)` â€” jamais un `fetch()`
+   * manuel vers `/rest/v1/rpc/import_budgy_archive`. Le client Neon partagÃ©
+   * (voir lib/neon/client.ts) attache automatiquement l'en-tÃªte `apikey` et le
+   * JWT de session Ã  CHAQUE requÃªte via son wrapper interne `fetchWithAuth` â€” un
+   * fetch manuel perdrait ces deux en-tÃªtes et produirait l'erreur Neon
    * "No API key found in request". Voir tests/import-archive-rpc.test.ts pour la
-   * vérification de non-régression contre un vrai serveur HTTP local.
+   * vÃ©rification de non-rÃ©gression contre un vrai serveur HTTP local.
    */
   async importArchive(data: AppData, checksum: string): Promise<RemoteImportResult> {
     const { data: result, error } = await this.client.rpc("import_budgy_archive", {
@@ -267,3 +267,4 @@ export class NeonRepository {
     };
   }
 }
+

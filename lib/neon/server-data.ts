@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth/server";
+﻿import { auth } from "@/lib/auth/server";
 
 async function token() {
   const result = await auth.token();
@@ -18,8 +18,9 @@ export async function neonDataFetch(path: string, init?: RequestInit) {
 
 export async function getCurrentBudgyUserId() {
   const response = await neonDataFetch("rpc/current_budgy_user_id", { method: "POST", body: "{}" });
-  if (!response.ok) throw new Error("Impossible de résoudre l'identité Budgy canonique.");
+  if (!response.ok) throw new Error("Impossible de rÃ©soudre l'identitÃ© Budgy canonique.");
   const value = await response.json() as unknown;
-  if (typeof value !== "string" || !value) throw new Error("Aucun UUID Budgy n'est associé à cette session.");
+  if (typeof value !== "string" || !value) throw new Error("Aucun UUID Budgy n'est associÃ© Ã  cette session.");
   return value;
 }
+
