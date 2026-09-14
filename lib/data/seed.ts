@@ -10,7 +10,8 @@ const iso = (monthOffset = 0, day = 5) => {
 export const emptyData: AppData = {
   tenants: [], rentPayments: [], tenantDebts: [], dubaiParts: [], dubaiSales: [],
   dubaiExpenses: [], dubaiCashMovements: [], businesses: [], businessContacts: [],
-  businessItems: [], businessTransactions: [], businessBookings: [], businessTasks: [],
+  businessItems: [], businessTransactions: [], businessTransactionLines: [],
+  businessPayments: [], businessStockMovements: [], businessBookings: [], businessTasks: [],
   budgetEntries: [], subscriptions: [], trips: [], flights: [], accommodations: [],
   tripActivities: [], tripChecklistItems: [], attachments: [],
   userModules: [], tripMembers: [], tripInvitations: [],
@@ -53,7 +54,8 @@ export const demoData: AppData = {
   businesses: [
     { id: "business-1", userId: LOCAL_USER_ID, name: "Studio Junior", type: "Services", template: "services", icon: "briefcase", colorHex: "#B24DFF", note: "", isActive: true, createdAt: iso(-8, 1), moduleClients: true, moduleSuppliers: false, moduleStock: false, modulePurchases: false, moduleSales: true, moduleReservations: true, moduleServices: true, moduleTasks: true, modulePayments: true, moduleDocuments: true, moduleKPI: true },
   ],
-  businessContacts: [], businessItems: [], businessTransactions: [], businessBookings: [], businessTasks: [],
+  businessContacts: [], businessItems: [], businessTransactions: [], businessTransactionLines: [],
+  businessPayments: [], businessStockMovements: [], businessBookings: [], businessTasks: [],
   trips: [
     { id: "trip-1", userId: LOCAL_USER_ID, title: "Istanbul", destinationSummary: "Turquie", startDate: iso(2, 14), endDate: iso(2, 19), peopleCount: 2, targetBudget: 1800, notes: "", isCompleted: false, createdAt: iso(-1, 1), coverImageUrl: "" },
   ],

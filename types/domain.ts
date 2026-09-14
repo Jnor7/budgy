@@ -1,6 +1,6 @@
 export type UUID = string;
 export type ISODate = string;
-export type Currency = "AED" | "EUR" | "FCFA" | "USD";
+export type Currency = "AED" | "EUR" | "FCFA" | "USD" | "GBP" | "XAF" | "XOF" | "CAD" | "CHF";
 export type EntryType = "revenu" | "depense";
 export type BudgetStatus = "recu" | "peu" | "non";
 export type DubaiMovementType = "cash_in" | "cash_out" | "withdrawal";
@@ -57,6 +57,7 @@ export interface Business extends EntityMeta {
   modulePurchases: boolean; moduleSales: boolean; moduleReservations: boolean;
   moduleServices: boolean; moduleTasks: boolean; modulePayments: boolean;
   moduleDocuments: boolean; moduleKPI: boolean;
+  reportingCurrency?: Currency; defaultPurchaseCurrency?: Currency; defaultSaleCurrency?: Currency;
 }
 export interface BusinessContact extends EntityMeta {
   businessId: UUID; name: string; role: string; phone: string; email: string; note: string;
@@ -64,10 +65,47 @@ export interface BusinessContact extends EntityMeta {
 export interface BusinessItem extends EntityMeta {
   businessId: UUID; title: string; kind: string; sku: string; quantity: number;
   purchasePrice: number; salePrice: number; isActive: boolean; note: string;
+  description?: string; category?: string; purchaseCurrency?: Currency; saleCurrency?: Currency;
+  purchaseExchangeRate?: number; purchasePriceReporting?: number; saleExchangeRate?: number;
+  salePriceReporting?: number; stockMinimum?: number; supplierContactId?: UUID | null; trackStock?: boolean;
 }
 export interface BusinessTransaction extends EntityMeta {
   businessId: UUID; title: string; type: EntryType; amount: number;
   category: string; date: ISODate; note: string;
+  transactionKind?: BusinessTransactionKind; contactId?: UUID; originalAmount?: number;
+  originalCurrency?: Currency; exchangeRate?: number; convertedAmount?: number;
+  reportingCurrency?: Currency; exchangeRateDate?: ISODate; discount?: number;
+  paymentStatus?: BusinessPaymentStatus; amountPaid?: number; status?: "active" | "cancelled";
+  createdAt?: ISODate;
+}
+export type BusinessTransactionKind = "sale" | "purchase" | "expense" | "refund" | "adjustment" | "other";
+export type BusinessPaymentStatus = "unpaid" | "partial" | "paid" | "refunded";
+export interface BusinessTransactionLine extends EntityMeta {
+  businessId: UUID; transactionId: UUID; itemId?: UUID; description: string; quantity: number;
+  unitPriceOriginal: number; originalCurrency: Currency; exchangeRate: number;
+  unitPriceReporting: number; unitCostReporting?: number; lineTotalReporting: number; stockEffect: -1 | 0 | 1; createdAt: ISODate;
+}
+export interface BusinessPayment extends EntityMeta {
+  businessId: UUID; transactionId: UUID; amountOriginal: number; currency: Currency;
+  exchangeRate: number; amountReporting: number; reportingCurrency: Currency; date: ISODate;
+  method: string; note: string; createdAt: ISODate;
+}
+export interface BusinessStockMovement extends EntityMeta {
+  businessId: UUID; itemId: UUID; transactionId?: UUID; date: ISODate;
+  quantityBefore: number; variation: number; quantityAfter: number; movementType: string;
+  reason: string; createdAt: ISODate;
+}
+export interface BusinessTransactionInput {
+  transactionId?: UUID; businessId: UUID; title: string; kind: BusinessTransactionKind; date: ISODate;
+  contactId?: UUID; discount: number; note: string; originalAmount: number; originalCurrency: Currency;
+  exchangeRate: number; reportingCurrency: Currency;
+  lines: { itemId?: UUID; description: string; quantity: number; unitPrice: number; currency: Currency; exchangeRate: number }[];
+}
+export interface BusinessPaymentInput {
+  transactionId: UUID; amount: number; currency: Currency; exchangeRate: number; date: ISODate; method: string; note: string;
+}
+export interface BusinessStockAdjustmentInput {
+  itemId: UUID; newQuantity: number; movementType: string; reason: string;
 }
 export interface BusinessBooking extends EntityMeta {
   businessId: UUID; title: string; customerName: string; startDate: ISODate;
@@ -166,7 +204,8 @@ export interface AppData {
   dubaiParts: DubaiPart[]; dubaiSales: DubaiSale[]; dubaiExpenses: DubaiExpense[];
   dubaiCashMovements: DubaiCashMovement[]; businesses: Business[];
   businessContacts: BusinessContact[]; businessItems: BusinessItem[];
-  businessTransactions: BusinessTransaction[]; businessBookings: BusinessBooking[];
+  businessTransactions: BusinessTransaction[]; businessTransactionLines: BusinessTransactionLine[];
+  businessPayments: BusinessPayment[]; businessStockMovements: BusinessStockMovement[]; businessBookings: BusinessBooking[];
   businessTasks: BusinessTask[]; budgetEntries: BudgetEntry[]; subscriptions: Subscription[];
   trips: Trip[]; flights: Flight[]; accommodations: Accommodation[];
   tripActivities: TripActivity[]; tripChecklistItems: TripChecklistItem[]; attachments: Attachment[];

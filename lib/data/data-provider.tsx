@@ -5,7 +5,7 @@ import { getNeonDataClient } from "@/lib/neon/client";
 import { hasInvalidNeonMode, usesNeon } from "@/lib/neon/config";
 import { NeonRepository, type RemoteImportResult } from "@/lib/data/neon-repository";
 import { enabledModuleKeys, modulesForHistoricalData, MODULE_KEYS } from "@/lib/modules/registry";
-import type { AppData, AppDataKey, AppEntity, DirectoryProfile, ModuleKey, Profile, TripCoverPatch } from "@/types/domain";
+import type { AppData, AppDataKey, AppEntity, BusinessPaymentInput, BusinessStockAdjustmentInput, BusinessTransactionInput, DirectoryProfile, ModuleKey, Profile, TripCoverPatch } from "@/types/domain";
 import { demoData, emptyData, LOCAL_USER_ID } from "@/lib/data/seed";
 import type { Airport } from "@/lib/airports/airports";
 import { allAirportCountries, type AirportCountry } from "@/lib/airports/countries";
@@ -57,6 +57,10 @@ interface DataContextValue {
   searchAirportDirectory: (query: string) => Promise<Airport[]>;
   loadAirportCountries: () => Promise<AirportCountry[]>;
   markNotificationRead: (id: string) => Promise<void>;
+  saveBusinessTransaction: (input: BusinessTransactionInput) => Promise<string>;
+  cancelBusinessTransaction: (transactionId: string) => Promise<void>;
+  recordBusinessPayment: (input: BusinessPaymentInput) => Promise<string>;
+  adjustBusinessStock: (input: BusinessStockAdjustmentInput) => Promise<void>;
   /** Alias explicite de `!localMode`, pour ne jamais confondre "configurÃ©" et "prÃªt". */
   neonConfigured: boolean;
   /**
@@ -629,6 +633,60 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return directory.find((item) => item.userId === target)?.avatarUrl ?? "";
   }, [directory, profile?.avatarUrl, userId]);
 
+  const refreshBusinessNow = useCallback(async () => {
+    const repository = repositoryRef.current;
+    if (!repository) throw new Error("La gestion transactionnelle Business nécessite Neon.");
+    const partial = await repository.loadBusiness();
+    setData((current) => ({ ...current, ...partial }));
+  }, []);
+
+  const saveBusinessTransaction = useCallback(async (input: BusinessTransactionInput) => {
+    const repository = repositoryRef.current;
+    if (!repository) throw new Error("La gestion transactionnelle Business nécessite Neon.");
+    setSyncStatus("syncing");
+    try {
+      const id = await repository.saveBusinessTransaction(input);
+      await refreshBusinessNow();
+      setSyncError(""); setSyncStatus("idle");
+      return id;
+    } catch (reason) { reportError(reason); throw reason; }
+  }, [refreshBusinessNow, reportError]);
+
+  const cancelBusinessTransaction = useCallback(async (transactionId: string) => {
+    const repository = repositoryRef.current;
+    if (!repository) throw new Error("La gestion transactionnelle Business nécessite Neon.");
+    setSyncStatus("syncing");
+    try {
+      await repository.cancelBusinessTransaction(transactionId);
+      await refreshBusinessNow();
+      setSyncError(""); setSyncStatus("idle");
+    } catch (reason) { reportError(reason); throw reason; }
+  }, [refreshBusinessNow, reportError]);
+
+  const recordBusinessPayment = useCallback(async (input: BusinessPaymentInput) => {
+    const repository = repositoryRef.current;
+    if (!repository) throw new Error("La gestion transactionnelle Business nécessite Neon.");
+    setSyncStatus("syncing");
+    try {
+      const id = await repository.recordBusinessPayment(input);
+      await refreshBusinessNow();
+      setSyncError(""); setSyncStatus("idle");
+      return id;
+    } catch (reason) { reportError(reason); throw reason; }
+  }, [refreshBusinessNow, reportError]);
+
+  const adjustBusinessStock = useCallback(async (input: BusinessStockAdjustmentInput) => {
+    const repository = repositoryRef.current;
+    if (!repository) throw new Error("La gestion transactionnelle Business nécessite Neon.");
+    setSyncStatus("syncing");
+    try {
+      await pendingInsertsRef.current.get(input.itemId);
+      await repository.adjustBusinessStock(input);
+      await refreshBusinessNow();
+      setSyncError(""); setSyncStatus("idle");
+    } catch (reason) { reportError(reason); throw reason; }
+  }, [refreshBusinessNow, reportError]);
+
   const value = useMemo<DataContextValue>(() => ({
     data, ready, localMode, userId, syncStatus, syncError, create, update, updateAndWait, updateTripCoverAndWait, remove,
     replaceAll: setData,
@@ -653,12 +711,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     searchAirportDirectory,
     loadAirportCountries,
     markNotificationRead,
+    saveBusinessTransaction,
+    cancelBusinessTransaction,
+    recordBusinessPayment,
+    adjustBusinessStock,
     neonConfigured,
     repositoryReady,
     registerFastPolling,
   }), [
     avatarUrl, create, data, directory, displayName, importArchive, inviteToTrip, localMode, markNotificationRead,
     modules, modulesConfigured, profile, ready, reload, remove, repositoryReady, registerFastPolling, respondInvitation, saveProfile,
+    saveBusinessTransaction, cancelBusinessTransaction, recordBusinessPayment, adjustBusinessStock,
     respondTravelFriendRequest, removeTravelFriend, searchAirportDirectory, loadAirportCountries, searchTravelProfiles, sendTravelFriendRequest,
     setModules, neonConfigured, syncError, syncStatus, update, updateAndWait, updateTripCoverAndWait, userId,
   ]);
@@ -671,6 +734,4 @@ export function useBudgyData() {
   if (!context) throw new Error("useBudgyData must be used inside DataProvider");
   return context;
 }
-
-
 

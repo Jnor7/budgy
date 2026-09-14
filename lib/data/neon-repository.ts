@@ -3,7 +3,7 @@ import { emptyData } from "@/lib/data/seed";
 import { entityKeys, entityTables, fromDatabaseRow, toDatabasePayload, toDatabaseRow } from "@/lib/data/entity-map";
 import { MODULE_KEYS } from "@/lib/modules/registry";
 import type { Database, Json } from "@/types/database";
-import type { AppData, AppDataKey, AppEntity, DirectoryProfile, ModuleKey, Profile, TripCoverPatch, UserPreferences } from "@/types/domain";
+import type { AppData, AppDataKey, AppEntity, BusinessPaymentInput, BusinessStockAdjustmentInput, BusinessTransactionInput, DirectoryProfile, ModuleKey, Profile, TripCoverPatch, UserPreferences } from "@/types/domain";
 import type { Airport } from "@/lib/airports/airports";
 import { airportCountriesFromCodes, airportCountryCodesMatching, airportCountryName, type AirportCountry } from "@/lib/airports/countries";
 import { countryCodeToFlag } from "@/lib/travel/destinations";
@@ -47,6 +47,61 @@ export class NeonRepository {
       return [key, (data ?? []).map((row) => fromDatabaseRow(row as Record<string, unknown>))] as const;
     }));
     return Object.fromEntries(entries) as Partial<AppData>;
+  }
+
+  async loadBusiness(): Promise<Partial<AppData>> {
+    const keys: AppDataKey[] = [
+      "businesses", "businessContacts", "businessItems", "businessTransactions",
+      "businessTransactionLines", "businessPayments", "businessStockMovements",
+      "businessBookings", "businessTasks",
+    ];
+    const entries = await Promise.all(keys.map(async (key) => {
+      const { data, error } = await this.client.from(entityTables[key]).select("*");
+      if (error) throw error;
+      return [key, (data ?? []).map((row) => fromDatabaseRow(row as Record<string, unknown>))] as const;
+    }));
+    return Object.fromEntries(entries) as Partial<AppData>;
+  }
+
+  async saveBusinessTransaction(input: BusinessTransactionInput) {
+    const lines = input.lines.map((line) => ({
+      item_id: line.itemId ?? null, description: line.description, quantity: line.quantity,
+      unit_price: line.unitPrice, currency: line.currency, exchange_rate: line.exchangeRate,
+    }));
+    const { data, error } = await this.client.rpc("save_business_transaction", {
+      p_transaction_id: input.transactionId ?? null, p_business_id: input.businessId,
+      p_title: input.title, p_kind: input.kind, p_date: input.date.slice(0, 10),
+      p_contact_id: input.contactId ?? null, p_discount: input.discount, p_note: input.note,
+      p_original_amount: input.originalAmount, p_original_currency: input.originalCurrency,
+      p_exchange_rate: input.exchangeRate, p_reporting_currency: input.reportingCurrency,
+      p_lines: lines,
+    });
+    if (error) throw error;
+    if (typeof data !== "string" || !data) throw new Error("La transaction Business n'a pas été confirmée par Neon.");
+    return data;
+  }
+
+  async cancelBusinessTransaction(transactionId: string) {
+    const { error } = await this.client.rpc("cancel_business_transaction", { p_transaction_id: transactionId });
+    if (error) throw error;
+  }
+
+  async recordBusinessPayment(input: BusinessPaymentInput) {
+    const { data, error } = await this.client.rpc("record_business_payment", {
+      p_transaction_id: input.transactionId, p_amount: input.amount, p_currency: input.currency,
+      p_exchange_rate: input.exchangeRate, p_date: input.date.slice(0, 10), p_method: input.method, p_note: input.note,
+    });
+    if (error) throw error;
+    if (typeof data !== "string" || !data) throw new Error("Le paiement n'a pas été confirmé par Neon.");
+    return data;
+  }
+
+  async adjustBusinessStock(input: BusinessStockAdjustmentInput) {
+    const { error } = await this.client.rpc("adjust_business_stock", {
+      p_item_id: input.itemId, p_new_quantity: input.newQuantity,
+      p_movement_type: input.movementType, p_reason: input.reason,
+    });
+    if (error) throw error;
   }
 
   async insert(key: AppDataKey, entity: AppEntity) {

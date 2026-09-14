@@ -74,6 +74,24 @@ export interface Database {
       send_travel_friend_request: { Args: { p_handle: string }; Returns: Json };
       respond_travel_friend_request: { Args: { p_request_id: string; p_accept: boolean }; Returns: Json };
       remove_travel_friend: { Args: { p_friend_id: string }; Returns: undefined };
+      save_business_transaction: {
+        Args: {
+          p_transaction_id: string | null; p_business_id: string; p_title: string; p_kind: string;
+          p_date: string; p_contact_id: string | null; p_discount: number; p_note: string;
+          p_original_amount: number; p_original_currency: string; p_exchange_rate: number;
+          p_reporting_currency: string; p_lines: Json;
+        };
+        Returns: string;
+      };
+      cancel_business_transaction: { Args: { p_transaction_id: string }; Returns: undefined };
+      record_business_payment: {
+        Args: { p_transaction_id: string; p_amount: number; p_currency: string; p_exchange_rate: number; p_date: string; p_method: string; p_note: string };
+        Returns: string;
+      };
+      adjust_business_stock: {
+        Args: { p_item_id: string; p_new_quantity: number; p_movement_type: string; p_reason: string };
+        Returns: undefined;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

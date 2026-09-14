@@ -8,6 +8,7 @@ import { Field, FormModal } from "@/components/ui/modal";
 import { V2Empty, V2Icon } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { BUSINESS_FEATURES, BUSINESS_TEMPLATES, businessTemplate } from "@/lib/modules/registry";
+import { BUSINESS_CURRENCIES } from "@/lib/domain/business";
 import type { Business, BusinessTemplate } from "@/types/domain";
 
 type Draft = Omit<Business, "id" | "userId" | "createdAt">;
@@ -28,6 +29,9 @@ const draftFromTemplate = (template: BusinessTemplate, base?: Draft): Draft => {
     colorHex: base?.colorHex ?? "#8B5CF6",
     note: base?.note ?? "",
     isActive: base?.isActive ?? true,
+    reportingCurrency: base?.reportingCurrency ?? "EUR",
+    defaultPurchaseCurrency: base?.defaultPurchaseCurrency ?? "EUR",
+    defaultSaleCurrency: base?.defaultSaleCurrency ?? "EUR",
     ...flags,
   };
 };
@@ -162,6 +166,25 @@ export default function GenericBusinessesPage() {
               </span>
             </button>
           ))}
+
+          <h3 className="section-title" style={{ marginBottom: 0 }}>Devises</h3>
+          <div className="grid-2">
+            <Field label="Reporting">
+              <select className="select" value={draft.reportingCurrency ?? "EUR"} onChange={(event) => setDraft({ ...draft, reportingCurrency: event.target.value as Business["reportingCurrency"] })}>
+                {BUSINESS_CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}
+              </select>
+            </Field>
+            <Field label="Achats par défaut">
+              <select className="select" value={draft.defaultPurchaseCurrency ?? "EUR"} onChange={(event) => setDraft({ ...draft, defaultPurchaseCurrency: event.target.value as Business["defaultPurchaseCurrency"] })}>
+                {BUSINESS_CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}
+              </select>
+            </Field>
+            <Field label="Ventes par défaut">
+              <select className="select" value={draft.defaultSaleCurrency ?? "EUR"} onChange={(event) => setDraft({ ...draft, defaultSaleCurrency: event.target.value as Business["defaultSaleCurrency"] })}>
+                {BUSINESS_CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}
+              </select>
+            </Field>
+          </div>
 
           <Field label="Note">
             <textarea className="textarea" value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} />

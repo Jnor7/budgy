@@ -12,6 +12,7 @@ export type MigrationManifest = z.infer<typeof migrationManifestSchema>;
 export type ArchiveDataKey = Exclude<AppDataKey,
   | "userModules" | "tripMembers" | "tripInvitations" | "notifications"
   | "tripExpenses" | "tripExpenseSplits" | "travelFriendRequests" | "travelFriends"
+  | "businessTransactionLines" | "businessPayments" | "businessStockMovements"
 >;
 
 const text = z.string();

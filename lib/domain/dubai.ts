@@ -1,12 +1,16 @@
 import type { Currency, DubaiCashMovement, DubaiExpense, DubaiPart, DubaiSale } from "@/types/domain";
 
-export const FX = { AED: 3.97, EUR: 1, FCFA: 655.957, USD: 1.08 } as const;
-export const DUBAI_CURRENCIES = ["AED", "EUR", "FCFA", "USD"] as const satisfies readonly Currency[];
-export const safeCurrency = (currency: string | null | undefined): Currency => {
-  const normalized = currency === "CFA" ? "FCFA" : currency;
-  return DUBAI_CURRENCIES.includes(normalized as Currency) ? normalized as Currency : "AED";
+export const FX: Record<Currency, number> = {
+  AED: 3.97, EUR: 1, FCFA: 655.957, USD: 1.08,
+  GBP: 0.86, XAF: 655.957, XOF: 655.957, CAD: 1.47, CHF: 0.95,
 };
-export const normalizeCurrency = (currency: string): Currency => safeCurrency(currency);
+export const DUBAI_CURRENCIES = ["AED", "EUR", "FCFA", "USD"] as const satisfies readonly Currency[];
+type DubaiCurrency = typeof DUBAI_CURRENCIES[number];
+export const safeCurrency = (currency: string | null | undefined): DubaiCurrency => {
+  const normalized = currency === "CFA" ? "FCFA" : currency;
+  return DUBAI_CURRENCIES.includes(normalized as DubaiCurrency) ? normalized as DubaiCurrency : "AED";
+};
+export const normalizeCurrency = (currency: string): DubaiCurrency => safeCurrency(currency);
 export const convertCurrency = (amount: number, from: Currency | "CFA", to: Currency) => {
   const source = normalizeCurrency(from);
   return amount / FX[source] * FX[to];

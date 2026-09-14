@@ -13,6 +13,9 @@ export const entityTables: { [K in AppDataKey]: string } = {
   businessContacts: "business_contacts",
   businessItems: "business_items",
   businessTransactions: "business_transactions",
+  businessTransactionLines: "business_transaction_lines",
+  businessPayments: "business_payments",
+  businessStockMovements: "business_stock_movements",
   businessBookings: "business_bookings",
   businessTasks: "business_tasks",
   budgetEntries: "budget_entries",
@@ -40,6 +43,7 @@ export const entityTables: { [K in AppDataKey]: string } = {
  */
 export const rpcManagedKeys: AppDataKey[] = [
   "tripMembers", "tripInvitations", "notifications", "travelFriendRequests", "travelFriends",
+  "businessTransactionLines", "businessPayments", "businessStockMovements",
 ];
 
 export const entityKeys = Object.keys(entityTables) as AppDataKey[];
@@ -60,6 +64,10 @@ const numericFields = new Set([
   "amount", "quantityBought", "quantitySold", "purchasePriceAED", "targetSalePriceAED",
   "cashWithdrawnAED", "quantity", "unitSalePriceAED", "amountAED", "purchasePrice",
   "salePrice", "price", "potentialAmount", "peopleCount", "targetBudget", "sizeBytes",
+  "purchaseExchangeRate", "purchasePriceReporting", "saleExchangeRate", "salePriceReporting",
+  "stockMinimum", "originalAmount", "exchangeRate", "convertedAmount", "discount", "amountPaid",
+  "unitPriceOriginal", "unitPriceReporting", "unitCostReporting", "lineTotalReporting", "stockEffect", "amountOriginal",
+  "amountReporting", "quantityBefore", "variation", "quantityAfter",
 ]);
 
 /**
