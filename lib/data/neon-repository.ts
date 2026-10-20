@@ -35,6 +35,24 @@ export class NeonRepository {
     return output;
   }
 
+  /** Versions de synchronisation par domaine (migration 20261020120000). Lecture légère, filtrée par RLS. */
+  async syncVersions(): Promise<Record<string, string>> {
+    const rpc = this.client.rpc as unknown as (name: string, args: Record<string, never>) => Promise<{ data: unknown; error: unknown }>;
+    const { data, error } = await rpc.call(this.client, "get_sync_versions", {});
+    if (error) throw error;
+    return Object.fromEntries(((data ?? []) as { domain: string; version: string | number }[]).map((row) => [row.domain, String(row.version)]));
+  }
+
+  /** Recharge uniquement les collections demandées (synchronisation ciblée). */
+  async loadKeys(keys: AppDataKey[]): Promise<Partial<AppData>> {
+    const entries = await Promise.all(keys.map(async (key) => {
+      const { data, error } = await this.client.from(entityTables[key]).select("*");
+      if (error) throw error;
+      return [key, (data ?? []).map((row) => fromDatabaseRow(row as Record<string, unknown>))] as const;
+    }));
+    return Object.fromEntries(entries) as Partial<AppData>;
+  }
+
   async loadTravel(): Promise<Partial<AppData>> {
     const keys: AppDataKey[] = [
       "trips", "flights", "accommodations", "tripActivities", "tripChecklistItems",

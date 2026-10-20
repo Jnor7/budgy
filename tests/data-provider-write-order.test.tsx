@@ -4,6 +4,7 @@ import { DataProvider, useBudgyData } from "@/lib/data/data-provider";
 import { emptyData } from "@/lib/data/seed";
 
 vi.mock("@/lib/neon/config", () => ({ usesNeon: true, hasInvalidNeonMode: false }));
+vi.mock("@/lib/auth/use-auth-session", () => ({ useAuthSession: () => ({ status: "authenticated", userId: "neon-user" }) }));
 
 const mocked = vi.hoisted(() => {
   let finishInsert: (() => void) | undefined;
