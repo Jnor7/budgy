@@ -1,0 +1,27 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEON_AUTH_BASE_URL: https://auth.invalid
+      NEON_DATA_API_URL: https://data.invalid
+      NEON_AUTH_COOKIE_SECRET: "0123456789012345678901234567890123456789"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps --no-audit --no-fund
+      - run: npx tsc --noEmit
+      - run: npx eslint . --quiet
+      - run: npx vitest run
+      - run: npx next build
