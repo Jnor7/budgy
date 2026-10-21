@@ -9,6 +9,7 @@ import { RentPaymentSheet } from "@/components/rent-payment-sheet";
 import { V2Avatar, V2Empty, V2Skeleton } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { isRentMonthActionable, rentYearRows, rentYearSummary, type RentMonthStatus } from "@/lib/domain/rent-history";
+import { closedTenantOutstanding, isTenantActive } from "@/lib/domain/tenants";
 import { eur } from "@/lib/format";
 
 const MONTH_FORMAT = new Intl.DateTimeFormat("fr-FR", { month: "long" });
@@ -46,7 +47,7 @@ export default function TenantDetailPage() {
       <header className="tenant-detail-nav"><Link href="/rentals"><ArrowLeft size={18} /><span>Loyers</span></Link><strong>Détail locataire</strong><span aria-hidden="true" /></header>
 
       <section className="tenant-year-card">
-        <header><V2Avatar name={tenant.name} large /><span><strong>{tenant.name}</strong><small>Loyer de base · {eur.format(tenant.monthlyRent)}/mois{tenant.endedOn ? ` · Clôturée le ${tenant.endedOn.slice(0, 10).split("-").reverse().join("/")}` : ""}</small></span></header>
+        <header><V2Avatar name={tenant.name} large /><span><strong>{tenant.name}</strong><small>Loyer de base · {eur.format(tenant.monthlyRent)}/mois{tenant.endedOn ? ` · ${isTenantActive(tenant, now) ? "Fin prévue" : "Clôturée"} le ${tenant.endedOn.slice(0, 10).split("-").reverse().join("/")}` : ""}{tenant.endedOn && !isTenantActive(tenant, now) ? ` · Reste dû total ${eur.format(closedTenantOutstanding(tenant, data.rentPayments, data.tenantDebts))}` : ""}</small></span></header>
         <div className="tenant-year-kpis"><span><strong>{summary.settledMonths}/12</strong><small>Soldés {year}</small></span><span><strong>{eur.format(summary.received)}</strong><small>Reçu</small></span><span><strong>{eur.format(summary.remaining)}</strong><small>Restant dû</small></span></div>
       </section>
 
