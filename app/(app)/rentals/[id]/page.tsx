@@ -18,6 +18,7 @@ const STATUS_LABELS: Record<RentMonthStatus, string> = {
   overdue: "En retard",
   upcoming: "À enregistrer",
   inactive: "Avant location",
+  closed: "Location clôturée",
 };
 
 export default function TenantDetailPage() {
@@ -45,7 +46,7 @@ export default function TenantDetailPage() {
       <header className="tenant-detail-nav"><Link href="/rentals"><ArrowLeft size={18} /><span>Loyers</span></Link><strong>Détail locataire</strong><span aria-hidden="true" /></header>
 
       <section className="tenant-year-card">
-        <header><V2Avatar name={tenant.name} large /><span><strong>{tenant.name}</strong><small>Loyer de base · {eur.format(tenant.monthlyRent)}/mois</small></span></header>
+        <header><V2Avatar name={tenant.name} large /><span><strong>{tenant.name}</strong><small>Loyer de base · {eur.format(tenant.monthlyRent)}/mois{tenant.endedOn ? ` · Clôturée le ${tenant.endedOn.slice(0, 10).split("-").reverse().join("/")}` : ""}</small></span></header>
         <div className="tenant-year-kpis"><span><strong>{summary.settledMonths}/12</strong><small>Soldés {year}</small></span><span><strong>{eur.format(summary.received)}</strong><small>Reçu</small></span><span><strong>{eur.format(summary.remaining)}</strong><small>Restant dû</small></span></div>
       </section>
 
@@ -58,11 +59,11 @@ export default function TenantDetailPage() {
         {rows.map((row) => {
           const isCurrent = year === now.getFullYear() && row.month === now.getMonth() + 1;
           const extra = row.carryOver + row.debts;
-          const displayedAmount = row.status === "inactive" ? "—" : eur.format(row.received > 0 ? row.received : row.due);
+          const displayedAmount = row.status === "inactive" || row.status === "closed" ? "—" : eur.format(row.received > 0 ? row.received : row.due);
           return <article className={`rent-month-row status-${row.status}`} key={row.month}>
             <span className="rent-month-status">{row.status === "paid" ? <Check size={14} /> : row.status === "partial" ? <Minus size={14} /> : <span />}</span>
-            <div className="rent-month-main"><div><strong>{MONTH_FORMAT.format(new Date(year, row.month - 1, 1))}</strong>{isCurrent ? <em>CE MOIS</em> : null}<b>{displayedAmount}</b></div><small>{STATUS_LABELS[row.status]}</small>{extra > 0 ? <small>{eur.format(tenant.monthlyRent)} + {eur.format(extra)} report/dette</small> : null}{row.remaining > 0 && row.status !== "upcoming" && row.status !== "inactive" ? <small className="rent-month-remaining">Reste {eur.format(row.remaining)}</small> : null}
-              {row.status !== "inactive" && row.status !== "paid" ? <div className="rent-month-track"><i style={{ width: `${row.progress * 100}%` }} /></div> : null}
+            <div className="rent-month-main"><div><strong>{MONTH_FORMAT.format(new Date(year, row.month - 1, 1))}</strong>{isCurrent ? <em>CE MOIS</em> : null}<b>{displayedAmount}</b></div><small>{STATUS_LABELS[row.status]}</small>{extra > 0 ? <small>{eur.format(tenant.monthlyRent)} + {eur.format(extra)} report/dette</small> : null}{row.remaining > 0 && row.status !== "upcoming" && row.status !== "inactive" && row.status !== "closed" ? <small className="rent-month-remaining">Reste {eur.format(row.remaining)}</small> : null}
+              {row.status !== "inactive" && row.status !== "closed" && row.status !== "paid" ? <div className="rent-month-track"><i style={{ width: `${row.progress * 100}%` }} /></div> : null}
             </div>
             {isRentMonthActionable(row, now) ? <button className="rent-month-action" onClick={() => setPaymentMonth(row.month)}>Enregistrer <ChevronRight size={14} /></button> : null}
           </article>;

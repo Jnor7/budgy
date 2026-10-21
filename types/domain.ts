@@ -24,6 +24,8 @@ export interface EntityMeta {
 
 export interface Tenant extends EntityMeta {
   name: string; monthlyRent: number; dueDay: number; note: string; createdAt: ISODate;
+  /** Date de fin de location (YYYY-MM-DD). Absente tant que la location est active. */
+  endedOn?: ISODate;
 }
 export interface RentPayment extends EntityMeta {
   tenantId: UUID; month: number; year: number; isPaid: boolean; paidDate?: ISODate;

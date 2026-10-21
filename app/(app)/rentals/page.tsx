@@ -12,7 +12,7 @@ import { Field, FormModal, FormRow, Sheet } from "@/components/ui/modal";
 import { V2Avatar, V2Empty, V2Skeleton } from "@/components/ui/v2";
 import { AmountField } from "@/components/ui/premium";
 import { useBudgyData } from "@/lib/data/data-provider";
-import { totalDueForMonth } from "@/lib/domain/tenants";
+import { isTenantActive, lastBillableMonth, localDateString, totalDueForMonth } from "@/lib/domain/tenants";
 import { eur, monthLabel } from "@/lib/format";
 import type { Tenant } from "@/types/domain";
 
@@ -32,10 +32,33 @@ export default function RentalsPage() {
   const [debtTenant, setDebtTenant] = useState<Tenant>();
   const [pendingDelete, setPendingDelete] = useState<Tenant>();
   const [quickPayment, setQuickPayment] = useState(false);
+  const [view, setView] = useState<"active" | "former">("active");
+  const [pendingClose, setPendingClose] = useState<Tenant>();
+  const [endDate, setEndDate] = useState("");
+  const [formerPayment, setFormerPayment] = useState<{ tenant: Tenant; year: number; month: number }>();
   const actionHandled = useRef(false);
   const month = cursor.getMonth() + 1;
   const year = cursor.getFullYear();
   const [now] = useState(() => new Date());
+  const activeTenants = data.tenants.filter((tenant) => isTenantActive(tenant, now));
+  const formerTenants = data.tenants.filter((tenant) => !isTenantActive(tenant, now));
+  const formerRemaining = (tenant: Tenant) => {
+    const last = lastBillableMonth(tenant);
+    if (!last) return 0;
+    const total = totalDueForMonth(tenant, data.rentPayments, data.tenantDebts, last.year, last.month);
+    const got = data.rentPayments
+      .filter((payment) => payment.tenantId === tenant.id && payment.year === last.year && payment.month === last.month)
+      .reduce((sum, payment) => sum + payment.amountReceived, 0);
+    return Math.max(total - got, 0);
+  };
+  const openClose = (tenant: Tenant) => { setEndDate(localDateString(new Date())); setPendingClose(tenant); };
+  const confirmClose = () => {
+    if (pendingClose && /^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      update("tenants", pendingClose.id, { endedOn: endDate });
+      showToast({ title: "Location clôturée", detail: `${pendingClose.name} · historique et dettes conservés`, tone: "success" });
+    }
+    setPendingClose(undefined);
+  };
 
   const due = (tenant: Tenant) => totalDueForMonth(tenant, data.rentPayments, data.tenantDebts, year, month);
   const received = (tenant: Tenant) => data.rentPayments
@@ -90,15 +113,25 @@ export default function RentalsPage() {
         <header><span><strong>Collecte du mois</strong><small>{monthLabel(cursor)}</small></span><em>{Math.round(totals.progress)}% encaissé</em></header>
         <div className="rent-collection-amounts"><span><small>Attendus</small><strong>{eur.format(totals.expected)}</strong></span><span><small>Encaissés</small><strong>{eur.format(totals.paid)}</strong></span></div>
         <div className="rent-collection-track"><i style={{ width: `${totals.progress}%` }} /></div>
-        <footer><span><strong>{data.tenants.length}</strong> locataire{data.tenants.length > 1 ? "s" : ""}</span><span><strong>{totals.paidTenants}</strong> payé{totals.paidTenants > 1 ? "s" : ""}</span><span><strong>{eur.format(totals.remaining)}</strong> restant</span></footer>
+        <footer><span><strong>{activeTenants.length}</strong> locataire{activeTenants.length > 1 ? "s" : ""}</span><span><strong>{totals.paidTenants}</strong> payé{totals.paidTenants > 1 ? "s" : ""}</span><span><strong>{eur.format(totals.remaining)}</strong> restant</span></footer>
       </section>
 
       <button className="add-tenant-cta" onClick={() => openTenant()}><span><Plus size={18} /></span><span><strong>Ajouter un locataire</strong><small>Créer son échéance et son loyer mensuel</small></span></button>
 
       {data.tenants.length === 0 ? <V2Empty icon={Building2} title="Aucun locataire pour le moment 🏠" text="Ajoutez un locataire pour suivre ses loyers, versements partiels et reports." action={<button className="button button-primary" onClick={() => openTenant()}>Ajouter un locataire</button>} /> : null}
 
+      {formerTenants.length > 0 ? <div className="tenant-actions" role="tablist" aria-label="Locataires"><button role="tab" aria-selected={view === "active"} className={`button ${view === "active" ? "button-primary" : "button-soft"}`} onClick={() => setView("active")}>Actifs ({activeTenants.length})</button><button role="tab" aria-selected={view === "former"} className={`button ${view === "former" ? "button-primary" : "button-soft"}`} onClick={() => setView("former")}>Anciens ({formerTenants.length})</button></div> : null}
+
       <div className="tenant-card-list">
-        {data.tenants.map((tenant) => {
+        {view === "former" ? formerTenants.map((tenant) => {
+          const last = lastBillableMonth(tenant);
+          const remaining = formerRemaining(tenant);
+          return <article className="tenant-premium-card" key={tenant.id} role="link" tabIndex={0} aria-label={`Détail ancien locataire ${tenant.name}`} onClick={() => router.push(`/rentals/${tenant.id}`)} onKeyDown={(event) => { if (event.key === "Enter") router.push(`/rentals/${tenant.id}`); }}>
+            <header><span className="tenant-identity"><V2Avatar name={tenant.name} /><span><strong>{tenant.name}</strong><small>Clôturée le {tenant.endedOn?.slice(0, 10).split("-").reverse().join("/")}</small></span></span><em className="rent-status pending">Ancien</em></header>
+            <div className="tenant-compact-finances"><span className="tenant-remains"><small>Reste dû</small><strong className={remaining ? "negative" : "positive"}>{eur.format(remaining)}</strong></span></div>
+            {last && remaining > 0 ? <div className="tenant-actions" onClick={(event) => event.stopPropagation()}><button className="button button-primary" onClick={() => setFormerPayment({ tenant, year: last.year, month: last.month })}><Banknote size={16} /> Encaisser</button></div> : null}
+          </article>;
+        }) : activeTenants.map((tenant) => {
           const total = due(tenant);
           const paid = received(tenant);
           const remaining = Math.max(total - paid, 0);
@@ -109,7 +142,7 @@ export default function RentalsPage() {
           const debts = data.tenantDebts.filter((debt) => debt.tenantId === tenant.id && !debt.isPaid && debt.month === month && debt.year === year);
 
           return <article className="tenant-premium-card" key={tenant.id} role="link" tabIndex={0} aria-label={`Détail locataire ${tenant.name}`} onClick={() => router.push(`/rentals/${tenant.id}`)} onKeyDown={(event) => { if (event.key === "Enter") router.push(`/rentals/${tenant.id}`); }}>
-            <header><span className="tenant-identity"><V2Avatar name={tenant.name} /><span><strong>{tenant.name}</strong><small>Échéance le {tenant.dueDay}</small></span></span><span className="tenant-card-tools"><em className={`rent-status ${statusTone}`}>{status}</em><span onClick={(event) => event.stopPropagation()}><RowMenu onEdit={() => openTenant(tenant)} onDelete={() => setPendingDelete(tenant)} /></span></span></header>
+            <header><span className="tenant-identity"><V2Avatar name={tenant.name} /><span><strong>{tenant.name}</strong><small>Échéance le {tenant.dueDay}</small></span></span><span className="tenant-card-tools"><em className={`rent-status ${statusTone}`}>{status}</em><span onClick={(event) => event.stopPropagation()}><RowMenu onEdit={() => openTenant(tenant)} onArchive={() => openClose(tenant)} onDelete={() => setPendingDelete(tenant)} /></span></span></header>
             <div className="tenant-compact-finances"><span><small>Loyer</small><strong>{eur.format(tenant.monthlyRent)}</strong></span><span><small>Report + dettes</small><strong className={carry ? "orange" : ""}>{eur.format(carry)}</strong></span><span><small>Total dû</small><strong>{eur.format(total)}</strong></span><span><small>Reçu</small><strong className="positive">{eur.format(paid)}</strong></span><span className="tenant-remains"><small>Reste</small><strong className={remaining ? "negative" : "positive"}>{eur.format(remaining)}</strong></span></div>
             {debts.length ? <div className="tenant-debt-note"><CircleAlert size={15} /> {debts.length} dette{debts.length > 1 ? "s" : ""} active{debts.length > 1 ? "s" : ""}</div> : null}
             <div className="tenant-actions" onClick={(event) => event.stopPropagation()}><button className="button button-primary" onClick={() => setPaymentTenant(tenant)}><Banknote size={16} /> Paiement</button><button className="button button-soft" onClick={() => setDebtTenant(tenant)}><CircleAlert size={16} /> Dette</button></div>
@@ -118,10 +151,12 @@ export default function RentalsPage() {
       </div>
 
       <FormModal open={tenantOpen} title={editing ? "Modifier le locataire" : "Ajouter un locataire"} submitLabel={editing ? "Enregistrer les modifications" : "Ajouter le locataire"} disableSubmit={!tenantDraft.name.trim() || tenantDraft.monthlyRent <= 0} onClose={() => setTenantOpen(false)} onSubmit={saveTenant} icon={Building2} tone="cyan"><div className="form-grid"><Field label="Loyer mensuel"><AmountField size="modal" value={tenantDraft.monthlyRent} onChange={(monthlyRent) => setTenantDraft({ ...tenantDraft, monthlyRent })} /></Field><FormRow><Field label="Nom"><input className="input" value={tenantDraft.name} onChange={(event) => setTenantDraft({ ...tenantDraft, name: event.target.value })} /></Field><Field label="Jour d'échéance"><input className="input" type="number" min="1" max="31" value={tenantDraft.dueDay} onChange={(event) => setTenantDraft({ ...tenantDraft, dueDay: Number(event.target.value) })} /></Field></FormRow><Field label="Note"><textarea className="textarea" value={tenantDraft.note} onChange={(event) => setTenantDraft({ ...tenantDraft, note: event.target.value })} /></Field></div></FormModal>
-      <Sheet open={quickPayment} title="Choisir un locataire" onClose={() => setQuickPayment(false)}><div className="dense-picker">{data.tenants.map((tenant) => <button className="v2-row" key={tenant.id} onClick={() => { setQuickPayment(false); setPaymentTenant(tenant); }}><V2Avatar name={tenant.name} /><span className="v2-row-main"><strong>{tenant.name}</strong><span>{eur.format(Math.max(due(tenant) - received(tenant), 0))} restant</span></span><Banknote size={18} className="accent" /></button>)}</div></Sheet>
+      <Sheet open={quickPayment} title="Choisir un locataire" onClose={() => setQuickPayment(false)}><div className="dense-picker">{activeTenants.map((tenant) => <button className="v2-row" key={tenant.id} onClick={() => { setQuickPayment(false); setPaymentTenant(tenant); }}><V2Avatar name={tenant.name} /><span className="v2-row-main"><strong>{tenant.name}</strong><span>{eur.format(Math.max(due(tenant) - received(tenant), 0))} restant</span></span><Banknote size={18} className="accent" /></button>)}</div></Sheet>
     </main>
 
     <RentPaymentSheet tenant={paymentTenant} year={year} month={month} onClose={() => setPaymentTenant(undefined)} />
+    <RentPaymentSheet tenant={formerPayment?.tenant} year={formerPayment?.year ?? year} month={formerPayment?.month ?? month} onClose={() => setFormerPayment(undefined)} />
+    <ConfirmDialog open={Boolean(pendingClose)} title="Clôturer la location ?" detail={`Plus aucune échéance ne sera générée pour ${pendingClose?.name ?? "ce locataire"} après la date de fin. Paiements, historique et dettes sont conservés ; le reste dû reste encaissable.`} confirmLabel="Clôturer la location" confirmTone="primary" content={<Field label="Date de fin de location"><input className="input" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></Field>} onCancel={() => setPendingClose(undefined)} onConfirm={confirmClose} />
     <RentDebtSheet tenant={debtTenant} year={year} initialMonth={month} onClose={() => setDebtTenant(undefined)} />
     <ConfirmDialog open={Boolean(pendingDelete)} title="Supprimer ce locataire ?" detail={`Le profil de ${pendingDelete?.name ?? "ce locataire"} sera supprimé. Les paiements liés peuvent être concernés.`} onCancel={() => setPendingDelete(undefined)} onConfirm={() => { if (pendingDelete) { remove("tenants", pendingDelete.id); showToast({ title: "Locataire supprimé", tone: "success" }); } setPendingDelete(undefined); }} />
   </>;
