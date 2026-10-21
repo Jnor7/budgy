@@ -2,6 +2,9 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { getNeonDataClient } from "@/lib/neon/client";
+import { useAuthSession } from "@/lib/auth/use-auth-session";
+import { SyncEngine, isMissingSyncFunction } from "@/lib/sync/sync-engine";
+import { SYNC_KEYS, keysForDomains } from "@/lib/sync/domains";
 import { hasInvalidNeonMode, usesNeon } from "@/lib/neon/config";
 import { NeonRepository, type RemoteImportResult } from "@/lib/data/neon-repository";
 import { enabledModuleKeys, modulesForHistoricalData, MODULE_KEYS } from "@/lib/modules/registry";
@@ -110,6 +113,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // attendre jusqu'a 7s avant que l'acceleration ne prenne effet.
   const wakePollRef = useRef<(() => void) | null>(null);
   const pendingInsertsRef = useRef(new Map<string, Promise<void>>());
+  // Écritures locales en cours : tant qu'il y en a, un rechargement distant ne remplace rien (pas de clignotement ni d'écrasement).
+  const mutationsRef = useRef(0);
+  const syncKickRef = useRef<(() => void) | null>(null);
+  const activeUserRef = useRef<string | null>(null);
+  const { status: sessionStatus, userId: sessionUserId } = useAuthSession();
   const airportCountriesRef = useRef<AirportCountry[] | null>(null);
   const dataRef = useRef(data);
   const localMode = !usesNeon;
@@ -153,6 +161,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     let pollTimer: number | undefined;
     let reloadInFlight = false;
+    let engine: SyncEngine | null = null;
 
     // Sondage adaptatif : un setTimeout recursif (au lieu d'un setInterval fixe)
     // relit fastPollCountRef a chaque tick, donc l'intervalle change des le
@@ -171,6 +180,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     const refreshCollaborativeData = async () => {
       if (cancelled || document.visibilityState !== "visible" || reloadInFlight || !repositoryRef.current) return;
+      if (mutationsRef.current > 0 || pendingInsertsRef.current.size > 0) return;
       reloadInFlight = true;
       try {
         const repository = repositoryRef.current;
@@ -178,7 +188,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           repository.loadTravel(),
           repository.loadDirectory().catch(() => []),
         ]);
-        if (!cancelled) {
+        if (!cancelled && repositoryRef.current === repository && mutationsRef.current === 0) {
           setData((current) => ({ ...current, ...nextTravel }));
           setDirectory(nextDirectory);
         }
@@ -189,30 +199,72 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    /** CrÃ©e le repository, charge les donnÃ©es et bascule `repositoryReady` de faÃ§on rÃ©active. */
+    /** Applique un changement détecté par le moteur de versions (ciblé par domaine). */
+    const applyRemoteChange = async (domains: string[] | null): Promise<boolean> => {
+      const repository = repositoryRef.current;
+      if (!repository) return true;
+      const keys = domains ? keysForDomains(domains) : SYNC_KEYS;
+      if (keys.length === 0) return true;
+      const partial = await repository.loadKeys(keys);
+      if (!cancelled && repositoryRef.current === repository && mutationsRef.current === 0) {
+        setData((current) => ({ ...current, ...partial }));
+        setSyncError("");
+        return true;
+      }
+      // Une écriture locale a démarré pendant le chargement : on ne l'écrase pas, le moteur réessaie aussitôt.
+      return false;
+    };
+
+    // Retour au premier plan, reconnexion, focus : vérification immédiate.
+    const wake = () => {
+      engine?.kick();
+      void refreshCollaborativeData();
+    };
+    syncKickRef.current = () => engine?.kick();
+
+    const addListeners = () => {
+      window.addEventListener("focus", wake);
+      window.addEventListener("online", wake);
+      window.addEventListener("pageshow", wake);
+      document.addEventListener("visibilitychange", wake);
+    };
+    const removeListeners = () => {
+      window.removeEventListener("focus", wake);
+      window.removeEventListener("online", wake);
+      window.removeEventListener("pageshow", wake);
+      document.removeEventListener("visibilitychange", wake);
+    };
+
+    /** Crée le repository, charge les données et bascule `repositoryReady` de façon réactive. Lève en cas d'échec. */
     const attachRepository = async (client: ReturnType<typeof getNeonDataClient>) => {
       if (!client || cancelled) return;
       const repository = new NeonRepository(client);
       repositoryRef.current = repository;
-      try {
-        await reload();
-        if (cancelled) return;
-        schedulePoll();
-        window.addEventListener("focus", refreshCollaborativeData);
-        document.addEventListener("visibilitychange", refreshCollaborativeData);
-      } catch (reason) {
-        if (!cancelled) setRepositoryReady(false);
-        reportError(reason);
-      }
+      const nextEngine = new SyncEngine({
+        fetchVersions: () => repository.syncVersions(),
+        onChange: applyRemoteChange,
+        isBusy: () => mutationsRef.current > 0 || pendingInsertsRef.current.size > 0,
+        isMissingFunction: isMissingSyncFunction,
+      });
+      // Référence prise avant le chargement complet : un changement survenu entre les deux sera repris.
+      await nextEngine.seed();
+      await reload();
+      if (cancelled) return;
+      engine = nextEngine;
+      engine.start();
+      schedulePoll();
+      addListeners();
     };
 
-    /** Session perdue (dÃ©connexion) : on revient Ã  un Ã©tat "configurÃ© mais non connectÃ©". */
+    /** Session perdue (déconnexion) : on revient à un état "configuré mais non connecté". */
     const detachRepository = () => {
       repositoryRef.current = null;
+      engine?.stop();
+      engine = null;
+      syncKickRef.current = null;
       if (pollTimer) window.clearTimeout(pollTimer);
       wakePollRef.current = null;
-      window.removeEventListener("focus", refreshCollaborativeData);
-      document.removeEventListener("visibilitychange", refreshCollaborativeData);
+      removeListeners();
       setRepositoryReady(false);
       setProfile(null);
       setDirectory([]);
@@ -229,6 +281,35 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // Tant que la session n'est pas résolue, on reste en chargement : jamais de faux écran déconnecté.
+      if (sessionStatus === "loading" || sessionStatus === "unreachable") return;
+
+      if (sessionStatus === "anonymous") {
+        const wasSignedIn = activeUserRef.current !== null;
+        activeUserRef.current = null;
+        detachRepository();
+        setData(structuredClone(emptyData));
+        setUserId(LOCAL_USER_ID);
+        setSyncError("");
+        setSyncStatus("idle");
+        setReady(true);
+        // Session perdue pendant l'utilisation (expirée ou fermée ailleurs) : retour à la connexion.
+        if (wasSignedIn && !window.location.pathname.startsWith("/auth")) {
+          window.location.assign(`/auth?next=${encodeURIComponent(window.location.pathname)}`);
+        }
+        return;
+      }
+
+      // Changement de compte dans le même onglet : aucune donnée de l'ancien compte ne doit rester visible.
+      if (activeUserRef.current !== null && activeUserRef.current !== sessionUserId) {
+        setData(structuredClone(emptyData));
+        setProfile(null);
+        setDirectory([]);
+        setRepositoryReady(false);
+        setReady(false);
+      }
+      activeUserRef.current = sessionUserId;
+
       const client = getNeonDataClient();
       if (!client) {
         reportError(new Error("Neon n'est pas configuré."));
@@ -236,11 +317,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      try {
-        await attachRepository(client);
-      } catch (reason) {
+      // Nouvel essai avec backoff : le JWT Data API ou le calcul Neon peuvent mettre un instant à répondre.
+      const backoff = [0, 700, 2000, 5000];
+      let failure: unknown;
+      for (const wait of backoff) {
+        if (cancelled) return;
+        if (wait) await new Promise((resolve) => window.setTimeout(resolve, wait));
+        if (cancelled) return;
+        try {
+          await attachRepository(client);
+          failure = undefined;
+          break;
+        } catch (reason) {
+          failure = reason;
+        }
+      }
+      if (failure !== undefined && !cancelled) {
         detachRepository();
-        reportError(reason);
+        reportError(failure);
       }
 
       if (!cancelled) setReady(true);
@@ -249,12 +343,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     void initialize();
     return () => {
       cancelled = true;
+      engine?.stop();
+      syncKickRef.current = null;
       if (pollTimer) window.clearTimeout(pollTimer);
       wakePollRef.current = null;
-      window.removeEventListener("focus", refreshCollaborativeData);
-      document.removeEventListener("visibilitychange", refreshCollaborativeData);
+      removeListeners();
     };
-  }, [localMode, reload, reportError]);
+  }, [localMode, reload, reportError, sessionStatus, sessionUserId]);
 
   useEffect(() => {
     if (ready && localMode) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -284,13 +379,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return () => { fastPollCountRef.current = Math.max(0, fastPollCountRef.current - 1); };
   }, []);
 
+  /** Marque une écriture locale en cours (bloque les remplacements distants) puis demande une synchronisation immédiate. */
+  const trackMutation = useCallback(<T,>(operation: Promise<T>): Promise<T> => {
+    mutationsRef.current += 1;
+    return operation.finally(() => {
+      mutationsRef.current = Math.max(0, mutationsRef.current - 1);
+      syncKickRef.current?.();
+    });
+  }, []);
+
   const create = useCallback(<K extends AppDataKey>(key: K, payload: Omit<EntityFor<K>, "id" | "userId">, options?: { userId?: string }) => {
     const entity = { ...payload, id: crypto.randomUUID(), userId: options?.userId ?? userId } as EntityFor<K>;
     setData((current) => ({ ...current, [key]: [...current[key], entity] } as AppData));
     const repository = repositoryRef.current;
     if (repository) {
       setSyncStatus("syncing");
-      const insertion = repository.insert(key, entity as AppEntity).then(async () => {
+      const insertion = trackMutation(repository.insert(key, entity as AppEntity)).then(async () => {
         await refreshTravelAfterMutation(key);
         setSyncError("");
         setSyncStatus("idle");
@@ -302,7 +406,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       void insertion.finally(() => pendingInsertsRef.current.delete(entity.id));
     }
     return entity;
-  }, [refreshTravelAfterMutation, reportError, userId]);
+  }, [refreshTravelAfterMutation, reportError, trackMutation, userId]);
 
   const updateAndWait = useCallback(async <K extends AppDataKey>(key: K, id: string, patch: Partial<EntityFor<K>>) => {
     const previous = dataRef.current[key].find((entity) => entity.id === id);
@@ -315,7 +419,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         ? pendingInsert.then(() => repository.update(key, id, patch as Partial<AppEntity>))
         : repository.update(key, id, patch as Partial<AppEntity>);
       try {
-        await persistence;
+        await trackMutation(persistence);
         await refreshTravelAfterMutation(key);
         setSyncError("");
         setSyncStatus("idle");
@@ -325,7 +429,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         throw reason;
       }
     }
-  }, [refreshTravelAfterMutation, reportError]);
+  }, [refreshTravelAfterMutation, reportError, trackMutation]);
 
   const update = useCallback(<K extends AppDataKey>(key: K, id: string, patch: Partial<EntityFor<K>>) => {
     void updateAndWait(key, id, patch).catch(() => undefined);
@@ -370,7 +474,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const repository = repositoryRef.current;
     if (repository) {
       setSyncStatus("syncing");
-      void repository.remove(key, id).then(async () => {
+      void trackMutation(repository.remove(key, id)).then(async () => {
         await refreshTravelAfterMutation(key);
         setSyncError("");
         setSyncStatus("idle");
@@ -383,7 +487,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         reportError(reason);
       });
     }
-  }, [refreshTravelAfterMutation, reportError]);
+  }, [refreshTravelAfterMutation, reportError, trackMutation]);
 
   const importArchive = useCallback(async (incoming: AppData, checksum: string) => {
     // Ordre de vÃ©rification volontaire : on distingue "pas configurÃ©" (A) de
@@ -645,35 +749,35 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (!repository) throw new Error("La gestion transactionnelle Business nécessite Neon.");
     setSyncStatus("syncing");
     try {
-      const id = await repository.saveBusinessTransaction(input);
+      const id = await trackMutation(repository.saveBusinessTransaction(input));
       await refreshBusinessNow();
       setSyncError(""); setSyncStatus("idle");
       return id;
     } catch (reason) { reportError(reason); throw reason; }
-  }, [refreshBusinessNow, reportError]);
+  }, [refreshBusinessNow, reportError, trackMutation]);
 
   const cancelBusinessTransaction = useCallback(async (transactionId: string) => {
     const repository = repositoryRef.current;
     if (!repository) throw new Error("La gestion transactionnelle Business nécessite Neon.");
     setSyncStatus("syncing");
     try {
-      await repository.cancelBusinessTransaction(transactionId);
+      await trackMutation(repository.cancelBusinessTransaction(transactionId));
       await refreshBusinessNow();
       setSyncError(""); setSyncStatus("idle");
     } catch (reason) { reportError(reason); throw reason; }
-  }, [refreshBusinessNow, reportError]);
+  }, [refreshBusinessNow, reportError, trackMutation]);
 
   const recordBusinessPayment = useCallback(async (input: BusinessPaymentInput) => {
     const repository = repositoryRef.current;
     if (!repository) throw new Error("La gestion transactionnelle Business nécessite Neon.");
     setSyncStatus("syncing");
     try {
-      const id = await repository.recordBusinessPayment(input);
+      const id = await trackMutation(repository.recordBusinessPayment(input));
       await refreshBusinessNow();
       setSyncError(""); setSyncStatus("idle");
       return id;
     } catch (reason) { reportError(reason); throw reason; }
-  }, [refreshBusinessNow, reportError]);
+  }, [refreshBusinessNow, reportError, trackMutation]);
 
   const adjustBusinessStock = useCallback(async (input: BusinessStockAdjustmentInput) => {
     const repository = repositoryRef.current;
@@ -681,11 +785,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setSyncStatus("syncing");
     try {
       await pendingInsertsRef.current.get(input.itemId);
-      await repository.adjustBusinessStock(input);
+      await trackMutation(repository.adjustBusinessStock(input));
       await refreshBusinessNow();
       setSyncError(""); setSyncStatus("idle");
     } catch (reason) { reportError(reason); throw reason; }
-  }, [refreshBusinessNow, reportError]);
+  }, [refreshBusinessNow, reportError, trackMutation]);
 
   const value = useMemo<DataContextValue>(() => ({
     data, ready, localMode, userId, syncStatus, syncError, create, update, updateAndWait, updateTripCoverAndWait, remove,

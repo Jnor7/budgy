@@ -1,18 +1,18 @@
-import { auth } from "@/lib/auth/server";
+import { getDataApiToken } from "@/lib/auth/data-token";
 
 type RouteContext = { params: Promise<{ path: string[] }> };
-
-const accessToken = async () => {
-  const result = await auth.token();
-  const data = result.data as { token?: string } | null;
-  return data?.token ?? null;
-};
 
 async function forward(request: Request, context: RouteContext) {
   const baseUrl = process.env.NEON_DATA_API_URL?.replace(/\/$/, "");
   if (!baseUrl) return Response.json({ message: "NEON_DATA_API_URL is missing." }, { status: 503 });
-  const token = await accessToken();
-  if (!token) return Response.json({ message: "Unauthorized" }, { status: 401 });
+  const tokenResult = await getDataApiToken(request.headers.get("cookie") ?? "");
+  if (!tokenResult.ok) {
+    return Response.json(
+      { message: tokenResult.status === 401 ? "Unauthorized" : "Authentication service temporarily unavailable" },
+      { status: tokenResult.status, headers: tokenResult.status === 503 ? { "retry-after": "2" } : undefined },
+    );
+  }
+  const token = tokenResult.token;
 
   const { path } = await context.params;
   const incoming = new URL(request.url);

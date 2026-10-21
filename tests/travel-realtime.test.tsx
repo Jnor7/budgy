@@ -12,6 +12,7 @@ import type { AppData, DirectoryProfile } from "@/types/domain";
  */
 
 vi.mock("@/lib/neon/config", () => ({ usesNeon: true, hasInvalidNeonMode: false }));
+vi.mock("@/lib/auth/use-auth-session", () => ({ useAuthSession: () => ({ status: "authenticated", userId: "neon-user" }) }));
 
 const USER_ID = "5dc4ad8a-6dd1-41df-95a8-2062084f1935";
 const FRIEND_ID = "friend-profile-id";
