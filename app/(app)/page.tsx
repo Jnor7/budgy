@@ -12,7 +12,7 @@ import { QuickActions } from "@/components/quick-actions";
 import { V2Avatar, V2Donut, V2Empty, V2Skeleton, categoryColor } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { budgetSummary, entriesForMonth, expenseBreakdown, monthSpent } from "@/lib/domain/budget";
-import { totalDueForMonth } from "@/lib/domain/tenants";
+import { activeTenants, collectionForMonth } from "@/lib/domain/tenants";
 import { visibleTrips } from "@/lib/domain/permissions";
 import { tripTotals } from "@/lib/domain/trips";
 import { eur, fullDate, monthLabel } from "@/lib/format";
@@ -41,19 +41,13 @@ export default function HomePage() {
     [trips],
   );
 
-  const rentExpected = useMemo(
-    () => data.tenants.reduce(
-      (sum, tenant) => sum + totalDueForMonth(tenant, data.rentPayments, data.tenantDebts, today.getFullYear(), today.getMonth() + 1),
-      0,
-    ),
+  const rentCollection = useMemo(
+    () => collectionForMonth(data.tenants, data.rentPayments, data.tenantDebts, today.getFullYear(), today.getMonth() + 1),
     [data.rentPayments, data.tenantDebts, data.tenants, today],
   );
-  const rentReceived = useMemo(
-    () => data.rentPayments
-      .filter((payment) => payment.month === today.getMonth() + 1 && payment.year === today.getFullYear())
-      .reduce((sum, payment) => sum + payment.amountReceived, 0),
-    [data.rentPayments, today],
-  );
+  const rentExpected = rentCollection.expected;
+  const rentReceived = rentCollection.paid;
+  const currentTenantCount = useMemo(() => activeTenants(data.tenants, today).length, [data.tenants, today]);
 
   const businessRevenue = data.businessTransactions.filter((item) => item.type === "revenu").reduce((sum, item) => sum + item.amount, 0);
   const businessExpenses = data.businessTransactions.filter((item) => item.type === "depense").reduce((sum, item) => sum + item.amount, 0);
@@ -185,7 +179,7 @@ export default function HomePage() {
             <span className="v2-tile-icon" style={{ background: "#e4f6fe", color: "#0ea5e9" }}><Building2 size={19} /></span>
             <span className="v2-row-main">
               <strong>Loyers</strong>
-              <span>{data.tenants.length} locataire(s) · {eur.format(Math.max(rentExpected - rentReceived, 0))} restant</span>
+              <span>{currentTenantCount} locataire(s) · {eur.format(Math.max(rentExpected - rentReceived, 0))} restant</span>
             </span>
             <span className="v2-row-value">{eur.format(rentExpected)}</span>
             <ChevronRight size={18} className="muted" />

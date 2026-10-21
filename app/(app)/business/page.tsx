@@ -3,6 +3,7 @@
 import { ArrowRight, BarChart3, Boxes, Building2, ListChecks, PackageOpen, Plus, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useBudgyData } from "@/lib/data/data-provider";
+import { activeTenants } from "@/lib/domain/tenants";
 import { eur } from "@/lib/format";
 
 export default function BusinessPage() {
@@ -11,7 +12,8 @@ export default function BusinessPage() {
   const expenses = data.businessTransactions.filter((item) => item.type === "depense").reduce((sum, item) => sum + item.amount, 0);
   const openTasks = data.businessTasks.filter((item) => !item.isDone).length;
   const stock = data.dubaiParts.reduce((sum, item) => sum + Math.max(item.quantityBought - item.quantitySold, 0), 0);
-  const rentTotal = data.tenants.reduce((sum, item) => sum + item.monthlyRent, 0);
+  const currentTenants = activeTenants(data.tenants);
+  const rentTotal = currentTenants.reduce((sum, item) => sum + item.monthlyRent, 0);
   const margin = revenue - expenses;
   const showKpis = revenue > 0 || openTasks > 0 || data.businessBookings.length > 0;
 
@@ -27,7 +29,7 @@ export default function BusinessPage() {
 
     <section className="business-areas">
       <div className="section-heading"><div><h2>Espaces de gestion</h2><span>{data.businesses.length + 2} environnements</span></div><Link className="compact-link" href="/business/generic"><Plus size={15} /> Activité</Link></div>
-      <Link className="business-area rent-area" href="/rentals"><span className="business-area-icon"><Building2 /></span><span><strong>Gestion des loyers</strong><small>{data.tenants.length} locataire{data.tenants.length > 1 ? "s" : ""} · {eur.format(rentTotal)}/mois</small></span><ArrowRight size={18} /></Link>
+      <Link className="business-area rent-area" href="/rentals"><span className="business-area-icon"><Building2 /></span><span><strong>Gestion des loyers</strong><small>{currentTenants.length} locataire{currentTenants.length > 1 ? "s" : ""} · {eur.format(rentTotal)}/mois</small></span><ArrowRight size={18} /></Link>
       <Link className="business-area dubai-area" href="/business/dubai"><span className="business-area-icon"><PackageOpen /></span><span><strong>Business Dubaï</strong><small>{data.dubaiParts.length} références · {stock} unités restantes</small></span><ArrowRight size={18} /></Link>
       <Link className="business-area generic-area" href="/business/generic"><span className="business-area-icon"><Boxes /></span><span><strong>Mes activités</strong><small>{data.businesses.length} business configuré{data.businesses.length > 1 ? "s" : ""}</small></span><ArrowRight size={18} /></Link>
     </section>

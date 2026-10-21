@@ -12,9 +12,9 @@ import { Field, FormModal, FormRow, Sheet } from "@/components/ui/modal";
 import { V2Avatar, V2Empty, V2Skeleton } from "@/components/ui/v2";
 import { AmountField } from "@/components/ui/premium";
 import { useBudgyData } from "@/lib/data/data-provider";
-import { totalDueForMonth } from "@/lib/domain/tenants";
+import { activeTenants as selectActiveTenants, closedTenantOutstanding, closedTenantSettlement, collectionForMonth, isEndScheduled, isTenantActive, localDateString, totalDueForMonth, validateEndDate } from "@/lib/domain/tenants";
 import { eur, monthLabel } from "@/lib/format";
-import type { Tenant } from "@/types/domain";
+import type { Tenant, TenantDebt } from "@/types/domain";
 
 type TenantDraft = { name: string; monthlyRent: number; dueDay: number; note: string };
 const blankTenant: TenantDraft = { name: "", monthlyRent: 0, dueDay: 5, note: "" };
@@ -32,24 +32,44 @@ export default function RentalsPage() {
   const [debtTenant, setDebtTenant] = useState<Tenant>();
   const [pendingDelete, setPendingDelete] = useState<Tenant>();
   const [quickPayment, setQuickPayment] = useState(false);
+  const [view, setView] = useState<"active" | "former">("active");
+  const [pendingClose, setPendingClose] = useState<Tenant>();
+  const [endDate, setEndDate] = useState("");
+  const [formerPayment, setFormerPayment] = useState<{ tenant: Tenant; year: number; month: number }>();
+  const [settleTenant, setSettleTenant] = useState<Tenant>();
+  const [settleDebt, setSettleDebt] = useState<TenantDebt>();
   const actionHandled = useRef(false);
   const month = cursor.getMonth() + 1;
   const year = cursor.getFullYear();
   const [now] = useState(() => new Date());
+  const activeTenants = selectActiveTenants(data.tenants, now);
+  const formerTenants = data.tenants.filter((tenant) => !isTenantActive(tenant, now));
+  const [endError, setEndError] = useState("");
+  const endCheck = pendingClose ? validateEndDate(pendingClose, endDate, data.rentPayments, now) : undefined;
+  const openClose = (tenant: Tenant) => { setEndDate(isEndScheduled(tenant, now) ? tenant.endedOn!.slice(0, 10) : localDateString(new Date())); setEndError(""); setPendingClose(tenant); };
+  const confirmClose = () => {
+    if (!pendingClose) return;
+    const check = validateEndDate(pendingClose, endDate, data.rentPayments, new Date());
+    if (!check.ok) { setEndError(check.error); return; }
+    update("tenants", pendingClose.id, { endedOn: endDate });
+    showToast({ title: check.scheduled ? "Fin de location programmée" : "Location clôturée", detail: `${pendingClose.name} · historique et dettes conservés`, tone: "success" });
+    setPendingClose(undefined);
+  };
+  const cancelSchedule = () => {
+    if (!pendingClose || !isEndScheduled(pendingClose, new Date())) return;
+    update("tenants", pendingClose.id, { endedOn: null });
+    showToast({ title: "Fin de location annulée", detail: `${pendingClose.name} · la location continue`, tone: "success" });
+    setPendingClose(undefined);
+  };
+  const settlement = settleTenant ? closedTenantSettlement(settleTenant, data.rentPayments, data.tenantDebts) : undefined;
+  const formatDay = (value?: string | null) => value?.slice(0, 10).split("-").reverse().join("/") ?? "";
 
   const due = (tenant: Tenant) => totalDueForMonth(tenant, data.rentPayments, data.tenantDebts, year, month);
   const received = (tenant: Tenant) => data.rentPayments
     .filter((payment) => payment.tenantId === tenant.id && payment.month === month && payment.year === year)
     .reduce((sum, payment) => sum + payment.amountReceived, 0);
 
-  const expected = data.tenants.reduce((sum, tenant) => sum + totalDueForMonth(tenant, data.rentPayments, data.tenantDebts, year, month), 0);
-  const paid = data.rentPayments.filter((payment) => payment.month === month && payment.year === year).reduce((sum, payment) => sum + payment.amountReceived, 0);
-  const paidTenants = data.tenants.filter((tenant) => {
-    const total = totalDueForMonth(tenant, data.rentPayments, data.tenantDebts, year, month);
-    const receivedTotal = data.rentPayments.filter((payment) => payment.tenantId === tenant.id && payment.month === month && payment.year === year).reduce((sum, payment) => sum + payment.amountReceived, 0);
-    return total > 0 && receivedTotal >= total;
-  }).length;
-  const totals = { expected, paid, paidTenants, remaining: Math.max(expected - paid, 0), progress: expected ? Math.min(paid / expected * 100, 100) : 0 };
+  const totals = collectionForMonth(data.tenants, data.rentPayments, data.tenantDebts, year, month);
 
   const openTenant = (tenant?: Tenant) => {
     setEditing(tenant?.id);
@@ -90,15 +110,24 @@ export default function RentalsPage() {
         <header><span><strong>Collecte du mois</strong><small>{monthLabel(cursor)}</small></span><em>{Math.round(totals.progress)}% encaissé</em></header>
         <div className="rent-collection-amounts"><span><small>Attendus</small><strong>{eur.format(totals.expected)}</strong></span><span><small>Encaissés</small><strong>{eur.format(totals.paid)}</strong></span></div>
         <div className="rent-collection-track"><i style={{ width: `${totals.progress}%` }} /></div>
-        <footer><span><strong>{data.tenants.length}</strong> locataire{data.tenants.length > 1 ? "s" : ""}</span><span><strong>{totals.paidTenants}</strong> payé{totals.paidTenants > 1 ? "s" : ""}</span><span><strong>{eur.format(totals.remaining)}</strong> restant</span></footer>
+        <footer><span><strong>{activeTenants.length}</strong> locataire{activeTenants.length > 1 ? "s" : ""}</span><span><strong>{totals.paidTenants}</strong> payé{totals.paidTenants > 1 ? "s" : ""}</span><span><strong>{eur.format(totals.remaining)}</strong> restant</span></footer>
       </section>
 
       <button className="add-tenant-cta" onClick={() => openTenant()}><span><Plus size={18} /></span><span><strong>Ajouter un locataire</strong><small>Créer son échéance et son loyer mensuel</small></span></button>
 
       {data.tenants.length === 0 ? <V2Empty icon={Building2} title="Aucun locataire pour le moment 🏠" text="Ajoutez un locataire pour suivre ses loyers, versements partiels et reports." action={<button className="button button-primary" onClick={() => openTenant()}>Ajouter un locataire</button>} /> : null}
 
+      {formerTenants.length > 0 ? <div className="tenant-actions" role="tablist" aria-label="Locataires"><button role="tab" aria-selected={view === "active"} className={`button ${view === "active" ? "button-primary" : "button-soft"}`} onClick={() => setView("active")}>Actifs ({activeTenants.length})</button><button role="tab" aria-selected={view === "former"} className={`button ${view === "former" ? "button-primary" : "button-soft"}`} onClick={() => setView("former")}>Anciens ({formerTenants.length})</button></div> : null}
+
       <div className="tenant-card-list">
-        {data.tenants.map((tenant) => {
+        {view === "former" ? formerTenants.map((tenant) => {
+          const remaining = closedTenantOutstanding(tenant, data.rentPayments, data.tenantDebts);
+          return <article className="tenant-premium-card" key={tenant.id} role="link" tabIndex={0} aria-label={`Détail ancien locataire ${tenant.name}`} onClick={() => router.push(`/rentals/${tenant.id}`)} onKeyDown={(event) => { if (event.key === "Enter") router.push(`/rentals/${tenant.id}`); }}>
+            <header><span className="tenant-identity"><V2Avatar name={tenant.name} /><span><strong>{tenant.name}</strong><small>Clôturée le {formatDay(tenant.endedOn)}</small></span></span><em className="rent-status pending">Ancien</em></header>
+            <div className="tenant-compact-finances"><span className="tenant-remains"><small>Reste dû</small><strong className={remaining ? "negative" : "positive"}>{eur.format(remaining)}</strong></span></div>
+            {remaining > 0 ? <div className="tenant-actions" onClick={(event) => event.stopPropagation()}><button className="button button-primary" onClick={() => setSettleTenant(tenant)}><Banknote size={16} /> Encaisser</button></div> : null}
+          </article>;
+        }) : activeTenants.map((tenant) => {
           const total = due(tenant);
           const paid = received(tenant);
           const remaining = Math.max(total - paid, 0);
@@ -109,7 +138,7 @@ export default function RentalsPage() {
           const debts = data.tenantDebts.filter((debt) => debt.tenantId === tenant.id && !debt.isPaid && debt.month === month && debt.year === year);
 
           return <article className="tenant-premium-card" key={tenant.id} role="link" tabIndex={0} aria-label={`Détail locataire ${tenant.name}`} onClick={() => router.push(`/rentals/${tenant.id}`)} onKeyDown={(event) => { if (event.key === "Enter") router.push(`/rentals/${tenant.id}`); }}>
-            <header><span className="tenant-identity"><V2Avatar name={tenant.name} /><span><strong>{tenant.name}</strong><small>Échéance le {tenant.dueDay}</small></span></span><span className="tenant-card-tools"><em className={`rent-status ${statusTone}`}>{status}</em><span onClick={(event) => event.stopPropagation()}><RowMenu onEdit={() => openTenant(tenant)} onDelete={() => setPendingDelete(tenant)} /></span></span></header>
+            <header><span className="tenant-identity"><V2Avatar name={tenant.name} /><span><strong>{tenant.name}</strong><small>Échéance le {tenant.dueDay}{isEndScheduled(tenant, now) ? ` · Fin prévue le ${formatDay(tenant.endedOn)}` : ""}</small></span></span><span className="tenant-card-tools"><em className={`rent-status ${statusTone}`}>{status}</em><span onClick={(event) => event.stopPropagation()}><RowMenu onEdit={() => openTenant(tenant)} onArchive={() => openClose(tenant)} archiveLabel={isEndScheduled(tenant, now) ? "Modifier la date de fin" : "Clôturer la location"} onDelete={() => setPendingDelete(tenant)} /></span></span></header>
             <div className="tenant-compact-finances"><span><small>Loyer</small><strong>{eur.format(tenant.monthlyRent)}</strong></span><span><small>Report + dettes</small><strong className={carry ? "orange" : ""}>{eur.format(carry)}</strong></span><span><small>Total dû</small><strong>{eur.format(total)}</strong></span><span><small>Reçu</small><strong className="positive">{eur.format(paid)}</strong></span><span className="tenant-remains"><small>Reste</small><strong className={remaining ? "negative" : "positive"}>{eur.format(remaining)}</strong></span></div>
             {debts.length ? <div className="tenant-debt-note"><CircleAlert size={15} /> {debts.length} dette{debts.length > 1 ? "s" : ""} active{debts.length > 1 ? "s" : ""}</div> : null}
             <div className="tenant-actions" onClick={(event) => event.stopPropagation()}><button className="button button-primary" onClick={() => setPaymentTenant(tenant)}><Banknote size={16} /> Paiement</button><button className="button button-soft" onClick={() => setDebtTenant(tenant)}><CircleAlert size={16} /> Dette</button></div>
@@ -118,10 +147,20 @@ export default function RentalsPage() {
       </div>
 
       <FormModal open={tenantOpen} title={editing ? "Modifier le locataire" : "Ajouter un locataire"} submitLabel={editing ? "Enregistrer les modifications" : "Ajouter le locataire"} disableSubmit={!tenantDraft.name.trim() || tenantDraft.monthlyRent <= 0} onClose={() => setTenantOpen(false)} onSubmit={saveTenant} icon={Building2} tone="cyan"><div className="form-grid"><Field label="Loyer mensuel"><AmountField size="modal" value={tenantDraft.monthlyRent} onChange={(monthlyRent) => setTenantDraft({ ...tenantDraft, monthlyRent })} /></Field><FormRow><Field label="Nom"><input className="input" value={tenantDraft.name} onChange={(event) => setTenantDraft({ ...tenantDraft, name: event.target.value })} /></Field><Field label="Jour d'échéance"><input className="input" type="number" min="1" max="31" value={tenantDraft.dueDay} onChange={(event) => setTenantDraft({ ...tenantDraft, dueDay: Number(event.target.value) })} /></Field></FormRow><Field label="Note"><textarea className="textarea" value={tenantDraft.note} onChange={(event) => setTenantDraft({ ...tenantDraft, note: event.target.value })} /></Field></div></FormModal>
-      <Sheet open={quickPayment} title="Choisir un locataire" onClose={() => setQuickPayment(false)}><div className="dense-picker">{data.tenants.map((tenant) => <button className="v2-row" key={tenant.id} onClick={() => { setQuickPayment(false); setPaymentTenant(tenant); }}><V2Avatar name={tenant.name} /><span className="v2-row-main"><strong>{tenant.name}</strong><span>{eur.format(Math.max(due(tenant) - received(tenant), 0))} restant</span></span><Banknote size={18} className="accent" /></button>)}</div></Sheet>
+      <Sheet open={quickPayment} title="Choisir un locataire" onClose={() => setQuickPayment(false)}><div className="dense-picker">{activeTenants.map((tenant) => <button className="v2-row" key={tenant.id} onClick={() => { setQuickPayment(false); setPaymentTenant(tenant); }}><V2Avatar name={tenant.name} /><span className="v2-row-main"><strong>{tenant.name}</strong><span>{eur.format(Math.max(due(tenant) - received(tenant), 0))} restant</span></span><Banknote size={18} className="accent" /></button>)}</div></Sheet>
     </main>
 
     <RentPaymentSheet tenant={paymentTenant} year={year} month={month} onClose={() => setPaymentTenant(undefined)} />
+    <Sheet open={Boolean(settleTenant)} title={`Encaisser · ${settleTenant?.name ?? ""}`} onClose={() => setSettleTenant(undefined)}>
+      <div className="dense-picker" aria-label="Échéances et dettes impayées">
+        {settlement?.months.map((item) => <button className="v2-row" key={`${item.year}-${item.month}`} onClick={() => { setFormerPayment({ tenant: settleTenant!, year: item.year, month: item.month }); setSettleTenant(undefined); }}><span className="v2-row-main"><strong>{monthLabel(new Date(item.year, item.month - 1, 1))}</strong><span>{item.debtLabels.length ? `Loyer + dette : ${item.debtLabels.join(", ")}` : "Loyer"} · reste {eur.format(item.amount)}</span></span><Banknote size={18} className="accent" /></button>)}
+        {settlement?.outsideDebts.map((debt) => <button className="v2-row" key={debt.id} onClick={() => { setSettleDebt(debt); setSettleTenant(undefined); }}><span className="v2-row-main"><strong>{debt.label}</strong><span>Dette hors période · {monthLabel(new Date(debt.year, debt.month - 1, 1))} · {eur.format(debt.amount)}</span></span><CircleAlert size={18} className="accent" /></button>)}
+        {settlement && settlement.months.length === 0 && settlement.outsideDebts.length === 0 ? <p>Plus rien à encaisser.</p> : null}
+      </div>
+    </Sheet>
+    <ConfirmDialog open={Boolean(settleDebt)} title="Marquer cette dette comme payée ?" detail={settleDebt ? `${settleDebt.label} · ${eur.format(settleDebt.amount)}. Elle sort du reste dû ; l'historique est conservé.` : ""} confirmLabel="Marquer comme payée" confirmTone="primary" onCancel={() => setSettleDebt(undefined)} onConfirm={() => { if (settleDebt) { update("tenantDebts", settleDebt.id, { isPaid: true }); showToast({ title: "Dette marquée comme payée", detail: settleDebt.label, tone: "success" }); } setSettleDebt(undefined); }} />
+    <RentPaymentSheet tenant={formerPayment?.tenant} year={formerPayment?.year ?? year} month={formerPayment?.month ?? month} onClose={() => setFormerPayment(undefined)} />
+    <ConfirmDialog open={Boolean(pendingClose)} title={endCheck?.ok && endCheck.scheduled ? "Programmer la fin de location ?" : "Clôturer la location ?"} detail={`Plus aucune échéance ne sera générée pour ${pendingClose?.name ?? "ce locataire"} après le mois de fin, qui reste entièrement facturable (pas de prorata). Paiements, historique et dettes sont conservés ; le reste dû reste encaissable.`} confirmLabel={endCheck?.ok && endCheck.scheduled ? "Programmer la fin" : "Clôturer la location"} confirmTone="primary" content={<Field label="Date de fin de location"><input className="input" type="date" value={endDate} onChange={(event) => { setEndDate(event.target.value); setEndError(""); }} />{pendingClose && isEndScheduled(pendingClose, now) ? <button type="button" className="button button-soft" onClick={cancelSchedule}>Annuler la fin de location programmée</button> : null}{endError ? <small className="negative" role="alert">{endError}</small> : endCheck && !endCheck.ok ? <small className="negative">{endCheck.error}</small> : endCheck?.scheduled ? <small>{"Date future : le locataire reste actif et facturé jusqu'à cette date incluse, puis passera dans « Anciens »."}</small> : null}</Field>} onCancel={() => setPendingClose(undefined)} onConfirm={confirmClose} />
     <RentDebtSheet tenant={debtTenant} year={year} initialMonth={month} onClose={() => setDebtTenant(undefined)} />
     <ConfirmDialog open={Boolean(pendingDelete)} title="Supprimer ce locataire ?" detail={`Le profil de ${pendingDelete?.name ?? "ce locataire"} sera supprimé. Les paiements liés peuvent être concernés.`} onCancel={() => setPendingDelete(undefined)} onConfirm={() => { if (pendingDelete) { remove("tenants", pendingDelete.id); showToast({ title: "Locataire supprimé", tone: "success" }); } setPendingDelete(undefined); }} />
   </>;

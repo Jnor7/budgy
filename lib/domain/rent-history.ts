@@ -1,7 +1,7 @@
-import { totalDueForMonth } from "@/lib/domain/tenants";
+import { isAfterTenancy, totalDueForMonth } from "@/lib/domain/tenants";
 import type { RentPayment, Tenant, TenantDebt } from "@/types/domain";
 
-export type RentMonthStatus = "paid" | "partial" | "overdue" | "upcoming" | "inactive";
+export type RentMonthStatus = "paid" | "partial" | "overdue" | "upcoming" | "inactive" | "closed";
 
 export interface RentMonthView {
   month: number;
@@ -39,6 +39,10 @@ export function rentYearRows(
       return { month, year, due: 0, received: 0, remaining: 0, progress: 0, status: "inactive" as const, carryOver: 0, debts: 0 };
     }
 
+    if (isAfterTenancy(tenant, year, month)) {
+      return { month, year, due: 0, received: 0, remaining: 0, progress: 0, status: "closed" as const, carryOver: 0, debts: 0 };
+    }
+
     const due = totalDueForMonth(tenant, payments, debts, year, month);
     const received = payments
       .filter((payment) => payment.tenantId === tenant.id && payment.year === year && payment.month === month)
@@ -67,7 +71,7 @@ export function rentYearRows(
 
 export function rentYearSummary(rows: RentMonthView[], year: number, now = new Date()) {
   const currentKey = monthKey(now.getFullYear(), now.getMonth() + 1);
-  const accountable = rows.filter((row) => row.status !== "inactive" && monthKey(year, row.month) <= currentKey);
+  const accountable = rows.filter((row) => row.status !== "inactive" && row.status !== "closed" && monthKey(year, row.month) <= currentKey);
   const last = accountable.at(-1);
   return {
     settledMonths: accountable.filter((row) => row.status === "paid").length,
@@ -79,4 +83,4 @@ export function rentYearSummary(rows: RentMonthView[], year: number, now = new D
 }
 
 export const isRentMonthActionable = (row: RentMonthView, now = new Date()) =>
-  row.status !== "inactive" && row.status !== "paid" && monthKey(row.year, row.month) <= monthKey(now.getFullYear(), now.getMonth() + 1);
+  row.status !== "inactive" && row.status !== "closed" && row.status !== "paid" && monthKey(row.year, row.month) <= monthKey(now.getFullYear(), now.getMonth() + 1);
