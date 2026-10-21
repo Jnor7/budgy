@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { rentYearRows, rentYearSummary, isRentMonthActionable } from "@/lib/domain/rent-history";
 import {
-  activeTenants, carryOverForMonth, closedTenantOutstanding, collectionForMonth, isAfterTenancy, isEndScheduled, isTenantActive,
+  activeTenants, carryOverForMonth, closedTenantOutstanding, closedTenantSettlement, collectionForMonth, isAfterTenancy, isEndScheduled, isTenantActive,
   lastBillableMonth, parseIsoDate, totalDueForMonth, validateEndDate,
 } from "@/lib/domain/tenants";
 import type { RentPayment, Tenant, TenantDebt } from "@/types/domain";
@@ -236,5 +236,73 @@ describe("indicateurs de collecte quand un locataire devient ancien", () => {
     const scheduled: Tenant = { ...b, endedOn: "2026-08-10" };
     expect(collectionForMonth([a, scheduled], [], [], 2026, 8).expected).toBe(totalDueForMonth(a, [], [], 2026, 8) + totalDueForMonth(b, [], [], 2026, 8));
     expect(collectionForMonth([a, scheduled], [], [], 2026, 9).expected).toBe(totalDueForMonth(a, [], [], 2026, 9));
+  });
+});
+
+describe("encaissement d'un ancien locataire : choisir la bonne échéance ou dette", () => {
+  const old: Tenant = { ...base, createdAt: "2024-01-05T12:00:00Z", endedOn: "2026-04-20" };
+
+  it("liste l'échéance impayée ancienne, pas le dernier mois", () => {
+    const settlement = closedTenantSettlement(old, paidMonths([2024, 1], [2026, 4], [[2024, 6, 300]]), []);
+    expect(settlement.months).toEqual([{ year: 2024, month: 6, amount: 200, debtLabels: [] }]);
+    expect(settlement.outsideDebts).toEqual([]);
+  });
+
+  it("un versement solde d'abord l'échéance de son mois, l'excédent éponge les plus anciens arriérés", () => {
+    const history = [payment(2026, 1, 0), payment(2026, 2, 0), payment(2026, 3, 700), payment(2026, 4, 500)];
+    const { months: items } = closedTenantSettlement(closed, history, []);
+    // mars paie son loyer (500) et 200 de janvier ; avril paie son loyer
+    expect(items.map((item) => [item.month, item.amount])).toEqual([[1, 300], [2, 500]]);
+    expect(closedTenantOutstanding(closed, history, [])).toBe(800);
+  });
+
+  it("un trop-perçu au-delà de tout arriéré n'est pas reporté", () => {
+    const history = [payment(2026, 1, 900), payment(2026, 2, 500), payment(2026, 3, 500), payment(2026, 4, 500)];
+    expect(closedTenantSettlement(closed, history, []).months).toEqual([]);
+    expect(closedTenantOutstanding(closed, history, [])).toBe(0);
+  });
+
+  it("nomme la dette du mois et sépare les dettes hors période", () => {
+    const outside = debt(2026, 8, 80);
+    const settlement = closedTenantSettlement(closed, paidMonths([2026, 1], [2026, 4], [[2026, 3, 300]]), [debt(2026, 3, 150), outside]);
+    expect(settlement.months).toEqual([{ year: 2026, month: 3, amount: 350, debtLabels: ["Dette"] }]);
+    expect(settlement.outsideDebts.map((item) => item.id)).toEqual([outside.id]);
+  });
+
+  it("encaisser sur l'échéance choisie solde cette échéance sans toucher aux autres", () => {
+    const history = paidMonths([2026, 1], [2026, 4], [[2026, 2, 200]]);
+    expect(closedTenantSettlement(closed, history, []).months.map((item) => [item.month, item.amount])).toEqual([[2, 300]]);
+    const afterPayment = history.map((item) => item.month === 2 ? { ...item, amountReceived: 500 } : item);
+    expect(closedTenantSettlement(closed, afterPayment, []).months).toEqual([]);
+    expect(closedTenantOutstanding(closed, afterPayment, [])).toBe(0);
+  });
+
+  it("une dette hors période marquée payée disparaît du reste dû", () => {
+    const outside = debt(2026, 8, 80);
+    expect(closedTenantOutstanding(closed, paidMonths([2026, 1], [2026, 4]), [outside])).toBe(80);
+    expect(closedTenantOutstanding(closed, paidMonths([2026, 1], [2026, 4]), [{ ...outside, isPaid: true }])).toBe(0);
+  });
+
+  it("le total des échéances listées égale toujours le reste dû (150 historiques aléatoires)", () => {
+    let seed = 987654;
+    const next = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed >>> 8; };
+    for (let run = 0; run < 150; run += 1) {
+      const span = 1 + (next() % 24);
+      const startIndex = 2024 * 12 + (next() % 12);
+      const range = months(Math.floor(startIndex / 12), (startIndex % 12) + 1, Math.floor((startIndex + span - 1) / 12), ((startIndex + span - 1) % 12) + 1);
+      const [endYear, endMonth] = range.at(-1)!;
+      const [startYear, startMonth] = range[0]!;
+      const tenant: Tenant = { ...base, createdAt: `${startYear}-${String(startMonth).padStart(2, "0")}-10T12:00:00Z`, endedOn: `${endYear}-${String(endMonth).padStart(2, "0")}-15` };
+      const pays: RentPayment[] = [];
+      const debts: TenantDebt[] = [];
+      for (const [y, m] of range) {
+        if (next() % 4 > 0) pays.push(payment(y, m, [0, 150, 500, 900][next() % 4]!));
+        if (next() % 4 === 0) debts.push(debt(y, m, 40 + (next() % 200), next() % 3 === 0));
+      }
+      if (next() % 3 === 0) debts.push(debt(endYear + 1, 3, 60));
+      const settlement = closedTenantSettlement(tenant, pays, debts);
+      const total = settlement.months.reduce((sum, item) => sum + item.amount, 0) + settlement.outsideDebts.reduce((sum, item) => sum + item.amount, 0);
+      expect(total, `run ${run}`).toBeCloseTo(closedTenantOutstanding(tenant, pays, debts), 6);
+    }
   });
 });

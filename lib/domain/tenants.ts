@@ -108,6 +108,47 @@ export function closedTenantOutstanding(tenant: Tenant, payments: RentPayment[],
   return carry + outside;
 }
 
+export interface SettlementMonth { year: number; month: number; amount: number; debtLabels: string[] }
+export interface ClosedTenantSettlement {
+  /** Échéances (loyer + dettes du mois) encore impayées, de la plus ancienne à la plus récente, après imputation des versements. */
+  months: SettlementMonth[];
+  /** Dettes impayées situées hors de la période de location : elles ne passent pas par un paiement mensuel. */
+  outsideDebts: TenantDebt[];
+}
+
+/**
+ * Détail du reste dû d'un locataire clôturé, par échéance. Le versement d'un mois solde d'abord l'échéance de ce mois, l'excédent éponge les arriérés les plus anciens
+ * (même total que `closedTenantOutstanding`) ; un trop-perçu au-delà de tout arriéré n'est pas reporté. Sert à choisir la bonne échéance à encaisser.
+ */
+export function closedTenantSettlement(tenant: Tenant, payments: RentPayment[], debts: TenantDebt[]): ClosedTenantSettlement {
+  const last = lastBillableMonth(tenant);
+  if (!last) return { months: [], outsideDebts: [] };
+  const created = new Date(tenant.createdAt);
+  const lastKey = key(last.year, last.month);
+  const startKey = Number.isNaN(created.getTime()) ? lastKey : key(created.getFullYear(), created.getMonth() + 1);
+  const mine = debts.filter((debt) => debt.tenantId === tenant.id && !debt.isPaid);
+  const outsideDebts = mine.filter((debt) => key(debt.year, debt.month) < startKey || key(debt.year, debt.month) > lastKey);
+  const queue: Array<SettlementMonth & { k: number }> = [];
+  for (let k = startKey; k <= lastKey; k += 1) {
+    const year = Math.floor(k / 12), month = (k % 12) + 1;
+    const inMonth = mine.filter((debt) => debt.year === year && debt.month === month);
+    queue.push({ k, year, month, amount: tenant.monthlyRent + inMonth.reduce((sum, debt) => sum + debt.amount, 0), debtLabels: inMonth.map((debt) => debt.label) });
+    let received = payments.filter((payment) => payment.tenantId === tenant.id && payment.year === year && payment.month === month).reduce((sum, payment) => sum + payment.amountReceived, 0);
+    // le versement d'un mois solde d'abord l'échéance de CE mois ; l'excédent éponge les arriérés, du plus ancien au plus récent
+    const own = queue[queue.length - 1]!;
+    const ownTake = Math.min(own.amount, received);
+    own.amount -= ownTake; received -= ownTake;
+    for (const item of queue) {
+      if (received <= 0) break;
+      const take = Math.min(item.amount, received);
+      item.amount -= take; received -= take;
+    }
+    while (queue.length && queue[0]!.amount <= 0) queue.shift();
+    for (let i = queue.length - 1; i >= 0; i -= 1) if (queue[i]!.amount <= 0) queue.splice(i, 1);
+  }
+  return { months: queue.map(({ year, month, amount, debtLabels }) => ({ year, month, amount, debtLabels })), outsideDebts };
+}
+
 /** Locataires dont la location est en cours (fin non atteinte). Les anciens ne sont ni comptés ni proposés pour de nouveaux paiements. */
 export const activeTenants = (tenants: Tenant[], now = new Date()) => tenants.filter((tenant) => isTenantActive(tenant, now));
 
