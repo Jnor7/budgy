@@ -8,7 +8,7 @@ import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 import { SwipeRow } from "@/components/ui/swipe-row";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { useBudgyData } from "@/lib/data/data-provider";
-import { budgetSummary, displayPotential, entriesForMonth, transactionCategory } from "@/lib/domain/budget";
+import { budgetSummary, buildCarryOver, canCarryOver, carriedCopyOf, displayPotential, entriesForMonth, transactionCategory } from "@/lib/domain/budget";
 import { eur, fromDateInput, monthLabel, shortDate, toDateInput } from "@/lib/format";
 import type { BudgetEntry, EntryType } from "@/types/domain";
 
@@ -36,6 +36,7 @@ export default function BudgetPage() {
   const [editing, setEditing] = useState<string>();
   const [draft, setDraft] = useState<Draft>(() => blankDraft(new Date()));
   const [copyConfirm, setCopyConfirm] = useState(false);
+  const [carryTarget, setCarryTarget] = useState<BudgetEntry>();
   const [hidden, setHidden] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const deleteTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -83,6 +84,18 @@ export default function BudgetPage() {
     const targetLabel = monthLabel(target).toLocaleLowerCase("fr-FR");
     showToast({ title: `Budget copié vers ${targetLabel}`, detail: `${createdIds.length} élément${createdIds.length > 1 ? "s" : ""} ajouté${createdIds.length > 1 ? "s" : ""}.`, tone: "success", actionLabel: createdIds.length ? "Annuler" : undefined, onAction: () => createdIds.forEach((id) => remove("budgetEntries", id)) });
   };
+  const carryOver = (entry: BudgetEntry) => {
+    if (!canCarryOver(entry) || carriedCopyOf(data.budgetEntries, entry)) return;
+    const created = create("budgetEntries", buildCarryOver(entry));
+    const targetLabel = monthLabel(new Date(created.date)).toLocaleLowerCase("fr-FR");
+    showToast({ title: `Reporté à ${targetLabel}`, detail: entry.title, tone: "success", actionLabel: "Annuler", onAction: () => remove("budgetEntries", created.id) });
+  };
+  const cancelCarryOver = (entry: BudgetEntry) => {
+    const copy = carriedCopyOf(data.budgetEntries, entry);
+    if (!copy) return;
+    remove("budgetEntries", copy.id);
+    showToast({ title: "Report annulé", detail: entry.title, tone: "success" });
+  };
   const scheduleDelete = (entry: BudgetEntry) => {
     if (deleteTimers.current.has(entry.id)) return;
     setHidden((current) => [...current, entry.id]);
@@ -122,12 +135,14 @@ export default function BudgetPage() {
     <button className="copy-month-action" onClick={() => setCopyConfirm(true)}><Copy size={16} /><span><strong>Copier vers le mois suivant</strong><small>Reprendre ce budget sans créer de doublons</small></span><ChevronRight size={17} /></button>
 
     <div className="budget-sections">
-      {sections.map((section) => { const visible = section.items.filter((entry) => !hidden.includes(entry.id)); const expected = visible.reduce((sum, entry) => sum + displayPotential(entry), 0); const completed = visible.filter((entry) => entry.status === "recu").reduce((sum, entry) => sum + entry.amount, 0); const progress = expected ? Math.min(completed / expected * 100, 100) : 0; const addLabel = section.tone === "income" ? "Ajouter une rentrée" : section.tone === "charge" ? "Ajouter une charge" : "Ajouter une dépense"; return <section className={`budget-block budget-${section.tone}`} key={section.title}><header><span><i />{section.title}<small>{visible.length}</small></span><strong>{eur.format(expected)}</strong></header><div className="budget-block-progress"><i style={{ width: `${progress}%` }} /></div>{visible.length === 0 ? <p className="dense-empty">Aucun élément ce mois.</p> : visible.map((entry) => { const EntryIcon = iconForEntry(entry); const doneLabel = section.tone === "income" ? "Reçu" : section.tone === "charge" ? "Payé" : "Réalisé"; return <SwipeRow key={entry.id} label={entry.title} onEdit={() => showEdit(entry)} onDelete={() => scheduleDelete(entry)}><div className="budget-jr-row"><span className="budget-row-icon"><EntryIcon size={16} /></span><span className="list-main"><strong>{entry.title}</strong><small>{entry.category} · {shortDate(entry.date)}</small>{entry.status === "recu" ? <em>{doneLabel}</em> : <em className="pending">En attente</em>}</span><strong>{eur.format(entry.status === "recu" ? entry.amount : displayPotential(entry))}</strong><button className={`entry-status ${entry.status === "recu" ? "done" : ""}`} aria-label={entry.status === "recu" ? "Passer en attente" : `Marquer ${doneLabel.toLocaleLowerCase("fr-FR")}`} onClick={() => update("budgetEntries", entry.id, { status: entry.status === "recu" ? "non" : "recu" })}><Check size={14} /></button></div></SwipeRow>; })}<button className="budget-block-add" onClick={() => showCreate(section.type, section.bucket)}><Plus size={15} /> {addLabel}</button></section>; })}
+      {sections.map((section) => { const visible = section.items.filter((entry) => !hidden.includes(entry.id)); const expected = visible.reduce((sum, entry) => sum + displayPotential(entry), 0); const completed = visible.filter((entry) => entry.status === "recu").reduce((sum, entry) => sum + entry.amount, 0); const progress = expected ? Math.min(completed / expected * 100, 100) : 0; const addLabel = section.tone === "income" ? "Ajouter une rentrée" : section.tone === "charge" ? "Ajouter une charge" : "Ajouter une dépense"; return <section className={`budget-block budget-${section.tone}`} key={section.title}><header><span><i />{section.title}<small>{visible.length}</small></span><strong>{eur.format(expected)}</strong></header><div className="budget-block-progress"><i style={{ width: `${progress}%` }} /></div>{visible.length === 0 ? <p className="dense-empty">Aucun élément ce mois.</p> : visible.map((entry) => { const EntryIcon = iconForEntry(entry); const doneLabel = section.tone === "income" ? "Reçu" : section.tone === "charge" ? "Payé" : "Réalisé"; return <SwipeRow key={entry.id} label={entry.title} onEdit={() => showEdit(entry)} onDelete={() => scheduleDelete(entry)}><div className="budget-jr-row"><span className="budget-row-icon"><EntryIcon size={16} /></span><span className="list-main"><strong>{entry.title}</strong><small>{entry.category} · {shortDate(entry.date)}</small>{entry.status === "recu" ? <em>{doneLabel}</em> : <em className="pending">En attente</em>}{carriedCopyOf(data.budgetEntries, entry) ? <small>Reporté au mois suivant · <button type="button" className="link-button" onClick={() => cancelCarryOver(entry)}>Annuler le report</button></small> : entry.carriedFromId ? <small>Reporté du mois précédent</small> : canCarryOver(entry) ? <small><button type="button" className="link-button" onClick={() => setCarryTarget(entry)}>Reporter au mois prochain</button></small> : null}</span><strong>{eur.format(entry.status === "recu" ? entry.amount : displayPotential(entry))}</strong><button className={`entry-status ${entry.status === "recu" ? "done" : ""}`} aria-label={entry.status === "recu" ? "Passer en attente" : `Marquer ${doneLabel.toLocaleLowerCase("fr-FR")}`} onClick={() => update("budgetEntries", entry.id, { status: entry.status === "recu" ? "non" : "recu" })}><Check size={14} /></button></div></SwipeRow>; })}<button className="budget-block-add" onClick={() => showCreate(section.type, section.bucket)}><Plus size={15} /> {addLabel}</button></section>; })}
     </div>
 
     <section className="utility-row"><div><span className="icon-tile icon-purple"><ReceiptText size={18} /></span><span><strong>Import Revolut</strong><small>CSV : description, montant, date</small></span></div><button className="button button-soft" onClick={() => fileRef.current?.click()}><Upload size={16} /> Importer</button><input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importCsv(file); }} /></section>
 
     <ConfirmDialog open={copyConfirm} title={`Copier le budget de ${monthLabel(selectedMonth).toLocaleLowerCase("fr-FR")} ?`} detail={`Les transactions de ce mois seront copiées vers ${monthLabel(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 1)).toLocaleLowerCase("fr-FR")}. Les doublons exacts seront ignorés.`} confirmLabel="Copier le budget" confirmTone="primary" onCancel={() => setCopyConfirm(false)} onConfirm={() => { setCopyConfirm(false); copyNext(); }} />
+
+    <ConfirmDialog open={Boolean(carryTarget)} title="Reporter au mois prochain ?" detail={carryTarget ? `« ${carryTarget.title} » reste sur ${monthLabel(selectedMonth).toLocaleLowerCase("fr-FR")}, non payé, et ${eur.format(displayPotential(carryTarget))} est aussi ajouté au mois suivant.` : ""} confirmLabel="Reporter" confirmTone="primary" onCancel={() => setCarryTarget(undefined)} onConfirm={() => { const entry = carryTarget; setCarryTarget(undefined); if (entry) carryOver(entry); }} />
 
     <FormModal
       open={open} title={editing ? "Modifier la transaction" : "Nouvelle transaction"}

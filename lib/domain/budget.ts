@@ -79,3 +79,27 @@ export function expenseBreakdown(entries: BudgetEntry[], by: "bucket" | "categor
 export function monthSpent(entries: BudgetEntry[]) {
   return expenseBreakdown(entries).reduce((sum, slice) => sum + slice.amount, 0);
 }
+
+// --- Report au mois suivant : la ligne d'origine reste intacte, une copie est ajoutée au mois suivant ---
+
+/** Seules les dépenses non payées, qui ne sont pas déjà un report, peuvent être reportées. */
+export const canCarryOver = (entry: BudgetEntry) =>
+  entry.type === "depense" && !isConfirmed(entry) && !entry.carriedFromId;
+
+/** Ligne reportée issue de `origin`, si elle existe. */
+export const carriedCopyOf = (entries: BudgetEntry[], origin: BudgetEntry) =>
+  entries.find((entry) => entry.carriedFromId === origin.id);
+
+/** Date de la copie : même jour le mois suivant (ramené à la fin du mois si besoin), à midi. */
+export function carryOverDate(entry: BudgetEntry) {
+  const source = new Date(entry.date);
+  const lastDay = new Date(source.getFullYear(), source.getMonth() + 2, 0).getDate();
+  return new Date(source.getFullYear(), source.getMonth() + 1, Math.min(source.getDate(), lastDay), 12);
+}
+
+/** Données de la copie reportée : non payée, rattachée à la ligne d'origine. */
+export const buildCarryOver = (entry: BudgetEntry): Omit<BudgetEntry, "id" | "userId"> => ({
+  title: entry.title, amount: entry.amount, potentialAmount: entry.potentialAmount, type: entry.type,
+  category: entry.category, bucket: entry.bucket, scope: entry.scope, note: entry.note,
+  status: "non", date: carryOverDate(entry).toISOString(), carriedFromId: entry.id,
+});
