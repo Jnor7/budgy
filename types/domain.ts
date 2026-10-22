@@ -120,6 +120,7 @@ export interface BusinessTask extends EntityMeta {
 export interface BudgetEntry extends EntityMeta {
   title: string; amount: number; type: EntryType; category: string; bucket: string;
   scope: string; date: ISODate; note: string; potentialAmount: number; status: BudgetStatus;
+  carriedFromId?: UUID | null;
 }
 export interface Subscription extends EntityMeta {
   title: string; amount: number; dueDay: number; category: string; systemImage: string;
