@@ -120,10 +120,20 @@ export interface BusinessTask extends EntityMeta {
 export interface BudgetEntry extends EntityMeta {
   title: string; amount: number; type: EntryType; category: string; bucket: string;
   scope: string; date: ISODate; note: string; potentialAmount: number; status: BudgetStatus;
+  accountName?: string | null; paymentStatus?: "planned" | "paid" | "received" | "cancelled";
+  affectsProjection?: boolean; isBeforeSnapshot?: boolean; isArchived?: boolean;
+  isInternalTransfer?: boolean; isExceptional?: boolean; excludeFromAverage?: boolean;
+  context?: string | null; businessProject?: string | null; ownerAdvance?: boolean;
+  recurringKey?: string | null; isVariableEstimate?: boolean;
 }
 export interface Subscription extends EntityMeta {
   title: string; amount: number; dueDay: number; category: string; systemImage: string;
   colorHex: string; scope: string; isActive: boolean; note: string;
+  provider?: string | null; currency?: Currency; expectedDate?: ISODate | null;
+  frequency?: string; paymentAccount?: string | null;
+  lifecycleStatus?: "ACTIVE" | "TO_CHECK" | "TO_CANCEL" | "CANCELLED" | "ONE_OFF" | "API_CREDIT";
+  lastPayment?: ISODate | null; nextExpectedPayment?: ISODate | null;
+  cancelRequested?: boolean; expectedWindow?: string | null;
 }
 export interface Trip extends EntityMeta {
   title: string; destinationSummary: string; startDate: ISODate; endDate: ISODate;

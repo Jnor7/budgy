@@ -1,0 +1,6 @@
+import { z } from "zod";
+import { financeJson,financeRepository,verifyFinanceMutation } from "@/lib/finance/http";
+export const runtime="nodejs";
+type Context={params:Promise<{action:string}>};
+export async function GET(request:Request,context:Context){try{const{action}=await context.params;if(action!=="overview")return financeJson({message:"Introuvable"},404);const month=new URL(request.url).searchParams.get("month")??"2026-11-01";if(!/^\d{4}-\d{2}-01$/.test(month))return financeJson({message:"Mois invalide"},400);return financeJson(await(await financeRepository(request)).overview(month));}catch(error){return financeJson({message:error instanceof Error?error.message:"Finance indisponible"},503);}}
+export async function POST(request:Request,context:Context){try{verifyFinanceMutation(request);const{action}=await context.params;const repo=await financeRepository(request);if(action==="sub-expense"){const body=z.object({provisionId:z.uuid(),name:z.string().trim().min(1).max(120),beneficiary:z.string().trim().max(120).optional(),plannedAmount:z.number().min(0).max(1000000)}).parse(await request.json());return financeJson({id:await repo.addSubExpense(body)});}return financeJson({message:"Introuvable"},404);}catch(error){return financeJson({message:error instanceof Error?error.message:"Finance indisponible"},400);}}

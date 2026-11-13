@@ -24,6 +24,7 @@ export function budgetSummary(entries: BudgetEntry[]) {
 
 export function entriesForMonth(entries: BudgetEntry[], date: Date) {
   return entries.filter((entry) => {
+    if (entry.isArchived) return false;
     const candidate = new Date(entry.date);
     return candidate.getFullYear() === date.getFullYear() && candidate.getMonth() === date.getMonth();
   });
