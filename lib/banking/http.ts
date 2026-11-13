@@ -1,28 +1,28 @@
 import "server-only";
 
 import { z } from "zod";
+import { auth } from "@/lib/auth/server";
 import { getDataApiToken } from "@/lib/auth/data-token";
 import { usesNeon } from "@/lib/neon/config";
 import { BankingError, bankingMessages } from "./errors";
-import { GoCardlessBankProvider } from "./gocardless";
+import { BridgeBankProvider } from "./bridge";
 import { BankingRepository } from "./repository";
 import { BankingService } from "./service";
 
 const redirectPath = "/api/banking/callback";
 const headers = { "cache-control": "private, no-store", "referrer-policy": "no-referrer" };
 const origin = z.url().transform((value) => new URL(value));
-let provider: GoCardlessBankProvider | undefined;
+
 
 export function bankConfig() {
-  const id = process.env.GOCARDLESS_BANK_SECRET_ID?.trim();
-  const key = process.env.GOCARDLESS_BANK_SECRET_KEY?.trim();
-  const redirect = origin.safeParse(process.env.GOCARDLESS_BANK_REDIRECT_URL);
+  const id = process.env.BRIDGE_CLIENT_ID?.trim();
+  const key = process.env.BRIDGE_CLIENT_SECRET?.trim();
+  const redirect = origin.safeParse(process.env.BRIDGE_REDIRECT_URL);
   if (!id || !key || !redirect.success || !process.env.DATABASE_URL || !usesNeon) return null;
   const url = redirect.data;
   const validProtocol = url.protocol === "https:" || (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname));
   if (!validProtocol || url.pathname !== redirectPath || url.search || url.hash || url.username || url.password) return null;
-  provider ??= new GoCardlessBankProvider(id, key);
-  return { provider, redirect: url };
+  return { id, key, redirect: url };
 }
 
 export const json = (value: unknown, status = 200) => Response.json(value, { status, headers });
@@ -46,7 +46,14 @@ export async function bankingRepository(request: Request) {
 export function bankingService(repo: BankingRepository) {
   const config = bankConfig();
   if (!config) throw new BankingError("unconfigured", 503);
-  return new BankingService(repo, config.provider, config.redirect);
+  return new BankingService(repo, new BridgeBankProvider(config.id, config.key, repo.userId), config.redirect);
+}
+
+export async function bankingSessionEmail() {
+  const { data } = await auth.getSession();
+  const email = z.email().safeParse(data?.user?.email);
+  if (!email.success) throw new BankingError("session", 401);
+  return email.data;
 }
 
 export function parse<T>(schema: z.ZodType<T>, value: unknown): T {

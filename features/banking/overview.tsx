@@ -156,7 +156,7 @@ export function BankingOverviewPage({ result }: { result?: string }) {
               <div className={styles.institution}><V2Icon icon={Landmark} tone="purple" /><h2>{connection.institution_name}</h2></div>
               <span className={styles.status} data-status={connection.status}>{labels[connection.status]}</span>
             </div>
-            {accounts.filter((account) => account.bank_connection_id === connection.id && account.active).map((account) => (
+            {accounts.filter((account) => account.bank_connection_id === connection.id && account.active && connection.managed).map((account) => (
               <div className={styles.account} key={account.id}>
                 <div><strong>{account.display_name}</strong><span>{account.currency}</span></div>
                 <div className={styles.amount}>
@@ -167,13 +167,13 @@ export function BankingOverviewPage({ result }: { result?: string }) {
             ))}
             <p className="muted small">{connection.last_synced_at ? `Dernière synchro le ${fullDate(connection.last_synced_at)}` : "Première synchronisation en attente"}</p>
             <div className={styles.actions}>
-              {["active", "pending"].includes(connection.status) && <button className="button" disabled={!!busy || autoSyncing} onClick={() => void operate("sync", connection.id)}>
+              {connection.managed && ["active", "pending"].includes(connection.status) && <button className="button" disabled={!!busy || autoSyncing} onClick={() => void operate("sync", connection.id)}>
                 {busy === connection.id ? "Opération en cours…" : "Synchroniser"}
               </button>}
-              {connection.status !== "active" && <button className="button button-primary" disabled={!!busy || autoSyncing} onClick={() => void connect(connection.institution_id)}>
+              {connection.managed && connection.status !== "active" && <button className="button button-primary" disabled={!!busy || autoSyncing} onClick={() => void connect(connection.institution_id)}>
                 {busy === connection.institution_id ? "Redirection…" : "Reconnecter"}
               </button>}
-              {connection.status !== "revoked" && <button className="button" disabled={!!busy || autoSyncing} onClick={() => setConfirmation(connection)}>Déconnecter</button>}
+              {connection.managed && connection.status !== "revoked" && <button className="button" disabled={!!busy || autoSyncing} onClick={() => setConfirmation(connection)}>Déconnecter</button>}
             </div>
           </section>
         ))}

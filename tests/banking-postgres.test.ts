@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { BankingRepository } from "@/lib/banking/repository";
 import { BankingService } from "@/lib/banking/service";
-import type { BankConsent, BankProvider, BankTransaction, ConsentRequest } from "@/lib/banking/provider";
+import type { BankConnection, BankProvider, BankTransaction, ConsentRequest } from "@/lib/banking/provider";
 
 const url = process.env.BUDGY_BANKING_TEST_DATABASE_URL;
 const alice = "8537a128-002e-4d44-a6bf-b1838d462032";
@@ -20,25 +20,34 @@ function fixtureBank() {
     { providerId: "bank-id", bookingDate: "2026-11-12", valueDate: null, amount: "25.00", currency: "GBP",
       description: "Virement", counterparty: null, reference: null, rawCategory: null, status: "booked" },
   ];
-  let consent: BankConsent;
+  const remoteUserId = randomUUID();
+  const link = "https://connect.bridgeapi.io/session/test";
+  let consent: BankConnection;
+  const institution = { id: "731", name: "Revolut" };
   const createConnection = vi.fn(async (request: ConsentRequest) => {
-    consent = { id: randomUUID(), institutionId: request.institution.id, reference: request.reference,
-      status: "pending", agreementId: randomUUID(), link: "https://ob.gocardless.com/psd2/start/test", accounts: [randomUUID()] };
-    return consent;
+    consent = { id: "9001", institutionId: request.institution.id, status: "pending", createdAt: new Date().toISOString() };
+    return { link, connectionId: null };
   });
   const provider = {
-    id: "fixture", listInstitutions: vi.fn(async () => [{ id: "revolut-fixture", name: "Revolut", consentDays: 90 }]),
-    createConnection, refreshConnection: createConnection,
-    getConnectionStatus: vi.fn(async () => consent), listAccounts: (value) => value.accounts,
-    getAccountDetails: vi.fn(async () => ({ name: "Revolut", iban: null, resourceId: "account-stable", currency: "EUR", type: "CACC" })),
-    getBalances: vi.fn(async () => [
-      { amount: "100.01", currency: "EUR", type: "available" as const, priority: 1, date: "2026-11-12" },
-      { amount: "34.50", currency: "GBP", type: "current" as const, priority: 1, date: "2026-11-12" },
-    ]),
+    id: "bridge", listInstitutions: vi.fn(async () => [institution]),
+    createConnection,
+    refreshConnection: vi.fn(async (_request: ConsentRequest, connectionId: string) => {
+      consent.status = "pending";
+      return { link, connectionId };
+    }),
+    verifyCallback: vi.fn(async () => undefined),
+    getConnectionStatus: vi.fn(async () => consent),
+    listAccounts: vi.fn(async () => [{
+      providerId: "810", details: { name: "Revolut", iban: null, resourceId: "account-stable", currency: "EUR", type: "CACC" },
+      balances: [
+        { amount: "100.01", currency: "EUR", type: "available" as const, priority: 1, date: "2026-11-12" },
+        { amount: "34.50", currency: "GBP", type: "current" as const, priority: 1, date: "2026-11-12" },
+      ],
+    }]),
     getTransactions: vi.fn(async () => transactions),
     disconnectConnection: vi.fn(async () => undefined),
   } satisfies BankProvider;
-  return { provider, transactions, get consent() { return consent; } };
+  return { provider, transactions, institution, remoteUserId, link, get consent() { return consent; } };
 }
 
 describe.skipIf(!url)("Open Banking with PostgreSQL and mock bank", () => {
@@ -73,16 +82,24 @@ describe.skipIf(!url)("Open Banking with PostgreSQL and mock bank", () => {
     const other = new BankingRepository(bob, db);
     const redirect = new URL("https://budgy.example/api/banking/callback");
     const service = new BankingService(repo, provider, redirect);
-    expect(await service.connect("revolut-fixture")).toBe("https://ob.gocardless.com/psd2/start/test");
+    const email = "fixture@example.test";
+    expect(await service.connect(fixture.institution.id, email)).toBe(fixture.link);
     const request = provider.createConnection.mock.calls[0]![0];
     const state = request.redirect.searchParams.get("state")!;
     expect(request.reference).toBe(state);
-    await expect(new BankingService(other, provider, redirect).callback(state)).rejects.toMatchObject({ code: "invalid" });
-    await expect(service.callback("forged")).rejects.toMatchObject({ code: "invalid" });
+    const returned = { userId: fixture.remoteUserId, connectionId: fixture.consent.id };
+    await expect(new BankingService(other, provider, redirect).callback(state, returned)).rejects.toMatchObject({ code: "invalid" });
+    await expect(service.callback("forged", returned)).rejects.toMatchObject({ code: "invalid" });
+    await expect(service.callback(state, { ...returned, connectionId: "9100" })).rejects.toMatchObject({ code: "invalid" });
+    await expect(service.callback(state, { ...returned, success: false, step: "sync_pending" })).rejects.toMatchObject({ code: "processing" });
+    await expect(service.callback(state, returned)).rejects.toMatchObject({ code: "invalid" });
     fixture.consent.status = "active";
-    await service.callback(state);
-    await expect(service.callback(state)).rejects.toMatchObject({ code: "invalid" });
-    const overview = await repo.overview();
+    const saved = await db.query("select id, provider, requisition_id from bank_connections");
+    const itemId = saved.rows[0].id;
+    expect(saved.rows[0]).toMatchObject({ provider: "bridge", requisition_id: fixture.consent.id });
+    await db.query("update bank_connections set next_sync_at = now() where id = $1", [itemId]);
+    await service.sync(itemId);
+    const overview = await repo.overview(provider.id);
     const connectionId = overview.connections[0]!.id;
     expect(overview.connections[0]!.status).toBe("active");
     expect(overview.accounts).toEqual(expect.arrayContaining([
@@ -97,7 +114,7 @@ describe.skipIf(!url)("Open Banking with PostgreSQL and mock bank", () => {
     const budgetId = await repo.linkBudget(netflix.id);
     expect(await repo.linkBudget(netflix.id)).toBe(budgetId);
     expect((await db.query("select user_id, amount from budget_entries")).rows).toEqual([{ user_id: alice, amount: "9.99" }]);
-    await expect(service.connect("revolut-fixture")).rejects.toMatchObject({ code: "duplicate" });
+    await expect(service.connect(fixture.institution.id, email)).rejects.toMatchObject({ code: "duplicate" });
     await expect(other.setCategory(netflix.id, "Intrusion")).rejects.toMatchObject({ code: "missing" });
 
     const makeDue = () => db.query("update bank_connections set next_sync_at = now() where id = $1", [connectionId]);
@@ -111,7 +128,7 @@ describe.skipIf(!url)("Open Banking with PostgreSQL and mock bank", () => {
     expect(afterSync).toHaveLength(2);
     expect(afterSync.find((item) => item.id === netflix.id)).toMatchObject({ budgy_category: "Streaming", budget_entry_id: budgetId });
 
-    expect(await other.overview()).toEqual({ connections: [], accounts: [] });
+    expect(await other.overview(provider.id)).toEqual({ connections: [], accounts: [] });
     const rls = await db.connect();
     try {
       await rls.query("begin");
@@ -134,14 +151,16 @@ describe.skipIf(!url)("Open Banking with PostgreSQL and mock bank", () => {
     await makeDue();
     fixture.consent.status = "expired";
     await expect(service.sync(connectionId)).rejects.toMatchObject({ code: "expired" });
-    expect((await repo.overview()).connections[0]!.status).toBe("expired");
-    await service.connect("revolut-fixture");
+    expect((await repo.overview(provider.id)).connections[0]!.status).toBe("expired");
+    await service.connect(fixture.institution.id, email);
     fixture.consent.status = "active";
-    const renewal = provider.createConnection.mock.calls[1]![0].redirect.searchParams.get("state")!;
-    await service.callback(renewal);
+    const [renewalRequest, renewedId] = provider.refreshConnection.mock.calls[0]!;
+    expect(renewedId).toBe(fixture.consent.id);
+    const renewal = renewalRequest.redirect.searchParams.get("state")!;
+    await service.callback(renewal, returned);
     expect((await repo.transactions({ page: 0 })).transactions).toHaveLength(2);
     await service.disconnect(connectionId);
-    expect((await repo.overview()).connections[0]!.status).toBe("revoked");
+    expect((await repo.overview(provider.id)).connections[0]!.status).toBe("revoked");
     expect((await repo.transactions({ page: 0 })).transactions).toHaveLength(2);
   });
 });

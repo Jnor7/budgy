@@ -8,6 +8,7 @@ export interface ConnectionSummary {
   last_synced_at: string | null;
   expires_at: string | null;
   auto_sync: boolean;
+  managed: boolean;
 }
 
 export interface AccountSummary {

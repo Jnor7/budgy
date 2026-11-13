@@ -3,7 +3,7 @@ import "server-only";
 import { randomBytes, randomUUID } from "node:crypto";
 import { BankingError } from "./errors";
 import { digest } from "./normalize";
-import type { BankConsent, BankProvider } from "./provider";
+import type { BankConnection, BankProvider, ConsentCallback } from "./provider";
 import type { AccountSnapshot, BankingRepository, Connection } from "./repository";
 
 const CONSENT_WINDOW = 45 * 60_000;
@@ -15,95 +15,100 @@ export class BankingService {
     return this.provider.listInstitutions("FR");
   }
 
-  async connect(institutionId: string) {
+  async connect(institutionId: string, email: string) {
     const institution = (await this.institutions()).find((item) => item.id === institutionId);
     if (!institution) throw new BankingError("missing", 404);
     const operation = randomUUID();
     const previous = await this.repo.reserveConsent(this.provider.id, institution, operation);
-    const state = randomBytes(32).toString("base64url");
+    // Hex fits Bridge's documented alphanumeric context.
+    const state = randomBytes(32).toString("hex");
     const redirect = new URL(this.redirect);
     redirect.searchParams.set("state", state);
-    let newConsent: BankConsent | undefined;
     try {
-      const request = { institution, redirect, reference: state };
-      newConsent = previous.requisition_id
-        ? await this.provider.refreshConnection(request)
+      const request = { institution, redirect, reference: state, email };
+      const consent = previous.requisition_id
+        ? await this.provider.refreshConnection(request, previous.requisition_id)
         : await this.provider.createConnection(request);
-      if (!newConsent.link || newConsent.reference !== request.reference || newConsent.institutionId !== institution.id) {
-        throw new BankingError("bank_unavailable");
-      }
-      if (previous.requisition_id && previous.requisition_id !== newConsent.id) {
-        await this.provider.disconnectConnection(previous.requisition_id);
-      }
-      await this.repo.saveConsent(previous.id, operation, digest(state), newConsent);
-      return newConsent.link;
+      await this.repo.saveConsent(previous.id, operation, digest(state), consent.connectionId);
+      return consent.link;
     } catch (error) {
-      if (newConsent) await this.provider.disconnectConnection(newConsent.id).catch(() => undefined);
-      await this.repo.finish(previous.id, operation, {
-        status: previous.requisition_id ? undefined : "error",
-      });
+      await this.repo.finish(previous.id, operation, { status: previous.requisition_id ? undefined : "error" });
       throw error;
     }
   }
 
-  async callback(state: string, interrupted = false) {
+  async callback(state: string, result: ConsentCallback) {
     const hash = digest(state);
     const connection = await this.repo.findByConsent(hash);
-    if (!connection || !connection.consent_started_at ||
+    if (!connection || connection.provider !== this.provider.id || !connection.consent_started_at ||
         Date.now() - connection.consent_started_at.getTime() > CONSENT_WINDOW) {
       throw new BankingError("invalid", 400);
     }
-    return this.sync(connection.id, hash, interrupted);
+    await this.provider.verifyCallback(result);
+    if (!result.connectionId) {
+      const operation = randomUUID();
+      await this.repo.claim(connection.id, operation, "callback", hash);
+      await this.repo.finish(connection.id, operation, {
+        status: connection.requisition_id ? "expired" : "revoked", error: "refused",
+      });
+      throw new BankingError("refused", 409);
+    }
+
+    if (connection.requisition_id && result.connectionId !== connection.requisition_id) {
+      throw new BankingError("invalid", 400);
+    }
+    // Resolve the browser-supplied item with the authenticated user's Bridge token.
+    const item = await this.provider.getConnectionStatus(result.connectionId);
+    if (item.id !== result.connectionId || item.institutionId !== connection.institution_id ||
+        (!connection.requisition_id && (!item.createdAt ||
+          Date.parse(item.createdAt) < connection.consent_started_at.getTime() - 30_000))) {
+      throw new BankingError("invalid", 400);
+    }
+    await this.synchronize(connection.id, { hash, item, interrupted: result.success === false && result.step !== "sync_pending" });
   }
 
-  async sync(connectionId: string, state?: string, interrupted = false) {
+  sync(connectionId: string) {
+    return this.synchronize(connectionId);
+  }
+
+  private async synchronize(connectionId: string, callback?: { hash: string; item: BankConnection; interrupted: boolean }) {
     const operation = randomUUID();
-    const row = await this.repo.claim(connectionId, operation, state ? "callback" : "sync", state);
+    const row = await this.repo.claim(connectionId, operation, callback ? "callback" : "sync", callback?.hash, callback?.item.id);
     try {
-      const consent = await this.readConsent(row);
-      const accounts = this.provider.listAccounts(consent);
-      if (!accounts.length) throw new BankingError("processing", 409);
+      const connection = callback?.item ?? await this.readConnection(row);
+      if (connection.status === "expired" || (connection.expiresAt && Date.parse(connection.expiresAt) <= Date.now())) {
+        throw new BankingError("expired", 409);
+      }
+      if (connection.status === "revoked") throw new BankingError("revoked", 409);
+      if (connection.status === "pending") throw new BankingError(callback?.interrupted ? "refused" : "processing", 409);
+      if (connection.status !== "active") throw new BankingError("bank_unavailable");
+      const accounts = await this.provider.listAccounts(connection);
       const snapshots: AccountSnapshot[] = [];
-      // Bound the provider concurrency while each account's three requests can overlap.
       for (let offset = 0; offset < accounts.length; offset += 3) {
-        const batch = await Promise.all(accounts.slice(offset, offset + 3).map(async (providerId) => {
-          const [details, balances, transactions] = await Promise.all([
-            this.provider.getAccountDetails(providerId),
-            this.provider.getBalances(providerId),
-            this.provider.getTransactions(providerId),
-          ]);
-          return { providerId, details, balances, transactions };
-        }));
+        const batch = await Promise.all(accounts.slice(offset, offset + 3).map(async (account) => ({
+          ...account,
+          transactions: await this.provider.getTransactions(account.providerId),
+        })));
         snapshots.push(...batch);
       }
-      await this.repo.storeSnapshot(connectionId, operation, consent, snapshots);
+      await this.repo.storeSnapshot(connectionId, operation, connection, snapshots);
     } catch (error) {
       const code = error instanceof BankingError ? error.code : "unavailable";
-      const status = code === "expired" ? "expired" : code === "revoked" || code === "refused" ? "revoked" : undefined;
-      const retrySeconds = code === "rate_limit" ? 86_400 : code === "pending" || code === "processing" ? 60 : 300;
+      const status = code === "expired" ? "expired" : code === "revoked" ? "revoked" : undefined;
+      const retrySeconds = code === "rate_limit" ? 86_400 : code === "processing" ? 60 : 300;
       await this.repo.finish(connectionId, operation, { status, error: code, retrySeconds });
-      if (code === "pending" && interrupted) throw new BankingError("refused", 409);
       throw error;
     }
   }
 
-  private async readConsent(row: Connection) {
+  private async readConnection(row: Connection) {
     if (row.provider !== this.provider.id || !row.requisition_id) throw new BankingError("invalid", 400);
     if (row.expires_at && row.expires_at.getTime() <= Date.now()) throw new BankingError("expired", 409);
-    const consent = await this.provider.getConnectionStatus(row.requisition_id);
-    if (consent.id !== row.requisition_id || consent.institutionId !== row.institution_id ||
-        (row.consent_state_hash && digest(consent.reference) !== row.consent_state_hash)) {
+    const item = await this.provider.getConnectionStatus(row.requisition_id);
+    if (item.id !== row.requisition_id || item.institutionId !== row.institution_id) {
       throw new BankingError("invalid", 400);
     }
-    switch (consent.status) {
-      case "active":
-        if (consent.expiresAt && Date.parse(consent.expiresAt) <= Date.now()) throw new BankingError("expired", 409);
-        return consent;
-      case "expired": throw new BankingError("expired", 409);
-      case "revoked": throw new BankingError(row.status === "pending" ? "refused" : "revoked", 409);
-      case "pending": throw new BankingError("pending", 409);
-      default: throw new BankingError("bank_unavailable");
-    }
+    return item;
   }
 
   async disconnect(connectionId: string) {

@@ -5,10 +5,11 @@ import { GET as callback } from "@/app/api/banking/callback/route";
 import { BankingError } from "@/lib/banking/errors";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/auth/server", () => ({ auth: { getSession: async () => ({ data: { user: { email: "session@example.test" } } }) } }));
 vi.mock("@/lib/auth/data-token", () => ({ getDataApiToken: vi.fn() }));
 vi.mock("@/lib/banking/repository", () => ({
-  BankingRepository: vi.fn(function () {
-    return { overview: async () => ({ accounts: [], connections: [] }) };
+  BankingRepository: vi.fn(function (userId: string) {
+    return { userId, overview: async () => ({ accounts: [], connections: [] }) };
   }),
 }));
 vi.mock("@/lib/banking/service", () => ({
@@ -22,17 +23,17 @@ const connect = vi.fn();
 const completeConsent = vi.fn();
 const user = "5ec77103-0b90-43b8-bfdc-6e632108fd4c";
 const base = "https://budgy.example";
-const consentLink = "https://ob.gocardless.com/psd2/start/test";
+const consentLink = "https://connect.bridgeapi.io/session/test";
 const context = (action: string) => ({ params: Promise.resolve({ action }) });
 const post = (origin = base) => new Request(`${base}/api/banking/connect`, {
   method: "POST", headers: { origin, "content-type": "application/json", cookie: "fixture=session" },
-  body: JSON.stringify({ institutionId: "revolut-fixture", budgy_user_id: "spoofed" }),
+  body: JSON.stringify({ institutionId: "revolut-fixture", budgy_user_id: "spoofed", email: "spoofed@example.test" }),
 });
 
 beforeEach(() => {
-  vi.stubEnv("GOCARDLESS_BANK_SECRET_ID", "provider-secret-id");
-  vi.stubEnv("GOCARDLESS_BANK_SECRET_KEY", "provider-secret-key");
-  vi.stubEnv("GOCARDLESS_BANK_REDIRECT_URL", `${base}/api/banking/callback`);
+  vi.stubEnv("BRIDGE_CLIENT_ID", "provider-secret-id");
+  vi.stubEnv("BRIDGE_CLIENT_SECRET", "provider-secret-key");
+  vi.stubEnv("BRIDGE_REDIRECT_URL", `${base}/api/banking/callback`);
   vi.stubEnv("DATABASE_URL", "postgresql://fixture");
   vi.stubEnv("NEON_DATA_API_URL", "https://data.example");
   vi.mocked(getDataApiToken).mockResolvedValue({ ok: true, token: "user-token" });
@@ -50,8 +51,8 @@ afterEach(() => {
 });
 
 describe("banking HTTP routes", () => {
-  it("returns an unconfigured page without touching Neon when GoCardless is disabled", async () => {
-    vi.stubEnv("GOCARDLESS_BANK_SECRET_KEY", "");
+  it("returns an unconfigured page without touching Neon when Bridge is disabled", async () => {
+    vi.stubEnv("BRIDGE_CLIENT_SECRET", "");
     const response = await GET(new Request(`${base}/api/banking/overview`), context("overview"));
     expect(await response.json()).toEqual({ configured: false, accounts: [], connections: [] });
     expect(fetch).not.toHaveBeenCalled();
@@ -66,21 +67,22 @@ describe("banking HTTP routes", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(BankingRepository).toHaveBeenCalledWith(user);
-    expect(connect).toHaveBeenCalledWith("revolut-fixture");
+    expect(connect).toHaveBeenCalledWith("revolut-fixture", "session@example.test");
     expect(await response.json()).toEqual({ link: consentLink });
   });
 
   it("requires an authenticated session and accepts only a valid callback state", async () => {
     const url = `${base}/api/banking/callback`;
     expect((await callback(new Request(url))).headers.get("location")).toBe("/banking?result=invalid");
-    const state = "X".repeat(43);
+    const state = "a".repeat(64);
+    const query = `user_uuid=${user}&item_id=4123&success=true`;
     vi.mocked(getDataApiToken).mockResolvedValueOnce({ ok: false, status: 401, reason: "fixture" });
-    expect((await callback(new Request(`${url}?state=${state}`))).headers.get("location")).toBe("/banking?result=session");
+    expect((await callback(new Request(`${url}?state=${state}&${query}`))).headers.get("location")).toBe("/banking?result=session");
     expect(completeConsent).not.toHaveBeenCalled();
     completeConsent.mockRejectedValueOnce(new BankingError("refused", 409));
-    expect((await callback(new Request(`${url}?state=${state}`))).headers.get("location")).toBe("/banking?result=refused");
-    expect(completeConsent).toHaveBeenCalledWith(state, false);
-    const success = await callback(new Request(`${url}?ref=${state}`));
+    expect((await callback(new Request(`${url}?state=${state}&${query}`))).headers.get("location")).toBe("/banking?result=refused");
+    expect(completeConsent).toHaveBeenCalledWith(state, { userId: user, connectionId: "4123", success: true, step: undefined });
+    const success = await callback(new Request(`${url}?context=${state}&${query}`));
     expect(success.status).toBe(303);
     expect(success.headers.get("location")).toBe("/banking?result=connected");
   });

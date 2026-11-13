@@ -36,7 +36,9 @@ export function normalizeTransactions(accountId: string, items: BankTransaction[
 export function splitAccount(details: BankAccountDetails, balances: BankBalance[], transactions: BankTransaction[]) {
   const currencies = new Set(balances.map((balance) => balance.currency));
   if (details.currency) currencies.add(details.currency);
-  for (const transaction of transactions) currencies.add(transaction.currency);
+  for (const transaction of transactions) {
+    if (!transaction.deleted) currencies.add(transaction.currency);
+  }
   const sorted = [...balances].sort((a, b) => b.date.localeCompare(a.date) || b.priority - a.priority);
   const identity = details.resourceId ? `resource:${details.resourceId}` : details.iban ? `iban:${details.iban}` : null;
   return [...currencies].map((currency) => ({

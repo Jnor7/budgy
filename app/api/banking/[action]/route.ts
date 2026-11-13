@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { BankingError } from "@/lib/banking/errors";
-import { bankConfig, bankingRepository, bankingService, errorResponse, json, parse, verifyMutation } from "@/lib/banking/http";
+import { bankConfig, bankingRepository, bankingService, bankingSessionEmail, errorResponse, json, parse, verifyMutation } from "@/lib/banking/http";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -26,7 +26,7 @@ export async function GET(request: Request, context: Context) {
     if (!configured && action === "transactions") return json({ transactions: [], accounts: [], categories: [], hasMore: false });
     const repo = await bankingRepository(request);
     switch (action) {
-      case "overview": return json({ configured, ...await repo.overview() });
+      case "overview": return json({ configured, ...await repo.overview("bridge") });
       case "institutions": return json(await bankingService(repo).institutions());
       case "transactions": return json(await repo.transactions(parse(filters, Object.fromEntries(new URL(request.url).searchParams))));
       default: throw new BankingError("missing", 404);
@@ -45,7 +45,8 @@ export async function POST(request: Request, context: Context) {
     switch (action) {
       case "connect": {
         const { institutionId } = parse(z.object({ institutionId: z.string().min(1).max(200) }), data);
-        return json({ link: await bankingService(repo).connect(institutionId) });
+        const service = bankingService(repo);
+        return json({ link: await service.connect(institutionId, await bankingSessionEmail()) });
       }
       case "sync":
         await bankingService(repo).sync(parse(connection, data).id);

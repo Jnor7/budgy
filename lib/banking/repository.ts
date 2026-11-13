@@ -4,7 +4,7 @@ import { Pool, type PoolClient } from "pg";
 import { BankingError } from "./errors";
 import type { AccountSummary, ConnectionSummary, TransactionSummary } from "./models";
 import { normalizeTransactions, splitAccount, suggestCategory } from "./normalize";
-import type { BankAccountDetails, BankBalance, BankConsent, BankTransaction, ConnectionStatus, Institution } from "./provider";
+import type { BankAccountDetails, BankBalance, BankConnection, BankTransaction, ConnectionStatus, Institution } from "./provider";
 
 export interface Connection {
   id: string;
@@ -62,17 +62,19 @@ export class BankingRepository {
     }
   }
 
-  overview() {
+  overview(activeProvider: string) {
     return this.transaction(async (db) => {
       const { rows: connections } = await db.query<ConnectionSummary>(`
-        select id, institution_id, institution_name,
-          case when status = 'active' and expires_at <= now() then 'expired' else status end status,
+        select id, institution_id, institution_name, provider = $1 as managed,
+          case when provider <> $1 then 'revoked'
+               when status = 'active' and expires_at <= now() then 'expired' else status end status,
           last_synced_at, expires_at,
-          (status = 'active' and (expires_at is null or expires_at > now())
+          (provider = $1 and (status = 'active' or (status = 'pending' and requisition_id is not null and consent_state_hash is null))
+           and (expires_at is null or expires_at > now())
            and coalesce(next_sync_at, '-infinity') <= now()
            and (last_synced_at is null or last_synced_at <= now() - interval '12 hours')) auto_sync
         from bank_connections order by institution_name, id
-      `);
+      `, [activeProvider]);
       const { rows: accounts } = await db.query<AccountSummary>(`select ${accountColumns} from bank_accounts order by display_name, id`);
       return { connections, accounts };
     });
@@ -107,14 +109,14 @@ export class BankingRepository {
     });
   }
 
-  saveConsent(id: string, operationId: string, state: string, consent: BankConsent) {
+  saveConsent(id: string, operationId: string, state: string, connectionId: string | null) {
     return this.transaction(async (db) => {
       const result = await db.query(`
-        update bank_connections set requisition_id = $3, agreement_id = $4, consent_state_hash = $5,
+        update bank_connections set requisition_id = $3, consent_state_hash = $4,
           consent_started_at = now(), status = 'pending', expires_at = null, updated_at = now(),
           next_sync_at = null, operation_id = null, operation_until = null
         where id = $1 and operation_id = $2
-      `, [id, operationId, consent.id, consent.agreementId, state]);
+      `, [id, operationId, connectionId, state]);
       if (!result.rowCount) throw new BankingError("busy", 409);
     });
   }
@@ -123,7 +125,7 @@ export class BankingRepository {
     if (row.operation_until && row.operation_until.getTime() > Date.now()) throw new BankingError("busy", 409);
   }
 
-  claim(id: string, operationId: string, kind: "sync" | "callback" | "disconnect", state?: string) {
+  claim(id: string, operationId: string, kind: "sync" | "callback" | "disconnect", state?: string, externalId?: string) {
     return this.transaction(async (db) => {
       const { rows: [row] } = await db.query<Connection>("select * from bank_connections where id = $1 for update", [id]);
       if (!row) throw new BankingError("missing", 404);
@@ -137,10 +139,13 @@ export class BankingRepository {
       if (kind === "sync" && row.next_sync_at && row.next_sync_at.getTime() > Date.now()) {
         throw new BankingError("busy", 409);
       }
-      if (!row.requisition_id && kind !== "disconnect") throw new BankingError("invalid", 400);
+      if (kind === "sync" && (!row.requisition_id || row.consent_state_hash)) throw new BankingError("pending", 409);
       await db.query(`
-        update bank_connections set operation_id = $2, operation_until = now() + interval '5 minutes' where id = $1
-      `, [id, operationId]);
+        update bank_connections set operation_id = $2, operation_until = now() + interval '5 minutes',
+          requisition_id = coalesce($3, requisition_id),
+          consent_state_hash = case when $3::text is null then consent_state_hash else null end
+        where id = $1
+      `, [id, operationId, externalId ?? null]);
       await db.query(`
         update bank_sync_runs set status = 'error', error_code = 'interrupted', finished_at = now()
         where bank_connection_id = $1 and status = 'running'
@@ -179,7 +184,7 @@ export class BankingRepository {
     });
   }
 
-  storeSnapshot(id: string, operationId: string, consent: BankConsent, snapshots: AccountSnapshot[]) {
+  storeSnapshot(id: string, operationId: string, connection: BankConnection, snapshots: AccountSnapshot[]) {
     return this.transaction(async (db) => {
       const { rowCount } = await db.query(`
         select id from bank_connections where id = $1 and operation_id = $2 for update
@@ -214,23 +219,27 @@ export class BankingRepository {
           await this.storeTransactions(db, saved.id, account.transactions);
         }
       }
-      if (!currentAccounts.length) throw new BankingError("processing", 409);
       await db.query(`
         update bank_accounts set active = false, updated_at = now()
         where bank_connection_id = $1 and active and not (id = any($2::uuid[]))
       `, [id, currentAccounts]);
       await db.query(`
-        update bank_connections set status = 'active', agreement_id = coalesce($3, agreement_id),
-          expires_at = coalesce($4, expires_at), consent_state_hash = null, last_synced_at = now(),
+        update bank_connections set status = 'active', expires_at = $3, consent_state_hash = null, last_synced_at = now(),
           updated_at = now(), next_sync_at = now() + interval '5 minutes', operation_id = null, operation_until = null
         where id = $1 and operation_id = $2
-      `, [id, operationId, consent.agreementId, consent.expiresAt ?? null]);
+      `, [id, operationId, connection.expiresAt ?? null]);
       await db.query("update bank_sync_runs set status = 'success', finished_at = now() where id = $1", [operationId]);
     });
   }
 
   private async storeTransactions(db: PoolClient, accountId: string, items: BankTransaction[]) {
-    const rows = normalizeTransactions(accountId, items).map((item) => ({
+    const deleted = items.flatMap((item) => item.deleted && item.providerId ? [item.providerId] : []);
+    if (deleted.length) {
+      await db.query(`
+        delete from bank_transactions where bank_account_id = $1 and provider_transaction_id = any($2::text[])
+      `, [accountId, deleted]);
+    }
+    const rows = normalizeTransactions(accountId, items.filter((item) => !item.deleted)).map((item) => ({
       provider_transaction_id: item.providerId, dedupe_key: item.key, booking_date: item.bookingDate,
       value_date: item.valueDate, amount: item.amount, currency: item.currency,
       description: item.description, counterparty: item.counterparty, status: item.status,

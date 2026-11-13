@@ -7,7 +7,6 @@ export const bankingMessages = {
   duplicate: "Cette banque est déjà connectée.",
   busy: "Une opération est déjà en cours pour cette banque.",
   bank_unavailable: "La banque est temporairement indisponible. Réessayez plus tard.",
-  provider_quota: "Le quota de connexions GoCardless est atteint.",
   rate_limit: "La limite de synchronisation de la banque est atteinte. Réessayez demain.",
   processing: "La banque prépare les données. Réessayez dans quelques minutes.",
   pending: "Le consentement est en attente de validation.",

@@ -3,19 +3,14 @@ export type ConnectionStatus = "active" | "pending" | "expired" | "revoked" | "e
 export interface Institution {
   id: string;
   name: string;
-  consentDays: number;
-  historyDays?: number;
 }
 
-export interface BankConsent {
+export interface BankConnection {
   id: string;
   institutionId: string;
-  reference: string;
   status: ConnectionStatus;
-  agreementId: string | null;
   expiresAt?: string;
-  link?: string;
-  accounts: string[];
+  createdAt?: string;
 }
 
 export interface BankAccountDetails {
@@ -45,23 +40,42 @@ export interface BankTransaction {
   reference: string | null;
   rawCategory: string | null;
   status: "booked" | "pending";
+  deleted?: boolean;
 }
 
 export interface ConsentRequest {
   institution: Institution;
   redirect: URL;
   reference: string;
+  email: string;
+}
+
+export interface ConsentSession {
+  link: string;
+  connectionId: string | null;
+}
+
+export interface ConsentCallback {
+  userId: string;
+  connectionId?: string;
+  success?: boolean;
+  step?: string;
+}
+
+export interface BankAccount {
+  providerId: string;
+  details: BankAccountDetails;
+  balances: BankBalance[];
 }
 
 export interface BankProvider {
   readonly id: string;
   listInstitutions(country: string): Promise<Institution[]>;
-  createConnection(request: ConsentRequest): Promise<BankConsent>;
-  getConnectionStatus(id: string): Promise<BankConsent>;
-  listAccounts(consent: BankConsent): string[];
-  getAccountDetails(id: string): Promise<BankAccountDetails>;
-  getBalances(id: string): Promise<BankBalance[]>;
-  getTransactions(id: string): Promise<BankTransaction[]>;
-  refreshConnection(request: ConsentRequest): Promise<BankConsent>;
+  createConnection(request: ConsentRequest): Promise<ConsentSession>;
+  refreshConnection(request: ConsentRequest, connectionId: string): Promise<ConsentSession>;
+  verifyCallback(callback: ConsentCallback): Promise<void>;
+  getConnectionStatus(id: string): Promise<BankConnection>;
+  listAccounts(connection: BankConnection): Promise<BankAccount[]>;
+  getTransactions(accountId: string): Promise<BankTransaction[]>;
   disconnectConnection(id: string): Promise<void>;
 }
