@@ -125,6 +125,10 @@ export interface BudgetEntry extends EntityMeta {
   isInternalTransfer?: boolean; isExceptional?: boolean; excludeFromAverage?: boolean;
   context?: string | null; businessProject?: string | null; ownerAdvance?: boolean;
   recurringKey?: string | null; isVariableEstimate?: boolean;
+  currency?: Currency; countsAsEarnedIncome?: boolean;
+  rolloverStatus?: "none" | "carried_out" | "carried_in";
+  originalEntryId?: UUID | null; originalMonth?: ISODate | null;
+  linkedDebtId?: UUID | null;
 }
 export interface Subscription extends EntityMeta {
   title: string; amount: number; dueDay: number; category: string; systemImage: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  ChevronRight, FileArchive, Landmark, LogOut, RefreshCcw,
+  ChevronRight, FileArchive, LogOut, RefreshCcw,
   Settings2, SlidersHorizontal, UserRound,
 } from "lucide-react";
 import Link from "next/link";
@@ -14,7 +14,6 @@ import { signOut } from "@/services/auth";
 import { moduleDefinition } from "@/lib/modules/registry";
 
 const SECTIONS = [
-  { href: "/banking", icon: Landmark, label: "Comptes bancaires", detail: "Soldes et transactions importées", tone: "purple" as const },
   { href: "/settings/account", icon: UserRound, label: "Mon compte", detail: "Pseudo, avatar et mot de passe", tone: "purple" as const },
   { href: "/settings/modules", icon: SlidersHorizontal, label: "Mes modules", detail: "Activer ou désactiver des fonctions", tone: "purple" as const },
   { href: "/settings", icon: Settings2, label: "Préférences", detail: "Devise et affichage", tone: "cyan" as const },

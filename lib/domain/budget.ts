@@ -5,18 +5,20 @@ export const displayPotential = (entry: BudgetEntry) => entry.potentialAmount > 
 export const transactionCategory = (value: string) => value.trim() || "Autre";
 
 export function budgetSummary(entries: BudgetEntry[]) {
-  const confirmed = entries.filter(isConfirmed);
-  const pending = entries.filter((entry) => !isConfirmed(entry));
+  const eligible = entries.filter((entry) => !entry.isArchived && entry.paymentStatus !== "cancelled");
+  const confirmed = eligible.filter(isConfirmed);
+  const pending = eligible.filter((entry) => !isConfirmed(entry) && entry.affectsProjection !== false);
   const sum = (items: BudgetEntry[], income: boolean, potential = false) => items
-    .filter((entry) => entry.type === (income ? "revenu" : "depense"))
+    .filter((entry) => entry.type === (income ? "revenu" : "depense") && (!entry.currency || entry.currency === "EUR"))
     .reduce((total, entry) => total + (potential ? displayPotential(entry) : entry.amount), 0);
 
   const confirmedIncome = sum(confirmed, true);
+  const earnedIncome = sum(confirmed.filter((entry) => entry.countsAsEarnedIncome !== false), true);
   const pendingIncome = sum(pending, true, true);
   const confirmedExpenses = sum(confirmed, false);
   const pendingExpenses = sum(pending, false, true);
   return {
-    confirmedIncome, pendingIncome, confirmedExpenses, pendingExpenses,
+    confirmedIncome, earnedIncome, pendingIncome, confirmedExpenses, pendingExpenses,
     confirmedBalance: confirmedIncome - confirmedExpenses,
     projectedBalance: confirmedIncome + pendingIncome - confirmedExpenses - pendingExpenses,
   };
