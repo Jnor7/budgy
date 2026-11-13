@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, POST } from "@/app/api/banking/[action]/route";
 import { GET as callback } from "@/app/api/banking/callback/route";
 import { BankingError } from "@/lib/banking/errors";
+import { bankConfig } from "@/lib/banking/http";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth/server", () => ({ auth: { getSession: async () => ({ data: { user: { email: "session@example.test" } } }) } }));
@@ -22,7 +23,8 @@ import { BankingRepository } from "@/lib/banking/repository";
 const connect = vi.fn();
 const completeConsent = vi.fn();
 const user = "5ec77103-0b90-43b8-bfdc-6e632108fd4c";
-const base = "https://budgy.example";
+const base = "https://budgy-iota-green.vercel.app";
+const proxyUrl = "https://budgy-bridge-proxy.onrender.com";
 const consentLink = "https://connect.bridgeapi.io/session/test";
 const context = (action: string) => ({ params: Promise.resolve({ action }) });
 const post = (origin = base) => new Request(`${base}/api/banking/connect`, {
@@ -31,8 +33,8 @@ const post = (origin = base) => new Request(`${base}/api/banking/connect`, {
 });
 
 beforeEach(() => {
-  vi.stubEnv("BRIDGE_CLIENT_ID", "provider-secret-id");
-  vi.stubEnv("BRIDGE_CLIENT_SECRET", "provider-secret-key");
+  vi.stubEnv("BUDGY_BRIDGE_PROXY_URL", proxyUrl);
+  vi.stubEnv("BUDGY_PROXY_SECRET", "test-proxy-secret");
   vi.stubEnv("BRIDGE_REDIRECT_URL", `${base}/api/banking/callback`);
   vi.stubEnv("DATABASE_URL", "postgresql://fixture");
   vi.stubEnv("NEON_DATA_API_URL", "https://data.example");
@@ -51,8 +53,8 @@ afterEach(() => {
 });
 
 describe("banking HTTP routes", () => {
-  it("returns an unconfigured page without touching Neon when Bridge is disabled", async () => {
-    vi.stubEnv("BRIDGE_CLIENT_SECRET", "");
+  it.each(["BUDGY_BRIDGE_PROXY_URL", "BUDGY_PROXY_SECRET"])("returns an unconfigured page without touching Neon when %s is missing", async (name) => {
+    vi.stubEnv(name, "");
     const response = await GET(new Request(`${base}/api/banking/overview`), context("overview"));
     expect(await response.json()).toEqual({ configured: false, accounts: [], connections: [] });
     expect(fetch).not.toHaveBeenCalled();
@@ -69,6 +71,12 @@ describe("banking HTTP routes", () => {
     expect(BankingRepository).toHaveBeenCalledWith(user);
     expect(connect).toHaveBeenCalledWith("revolut-fixture", "session@example.test");
     expect(await response.json()).toEqual({ link: consentLink });
+  });
+
+  it("keeps the production callback on Vercel and rejects the proxy as the callback host", () => {
+    expect(bankConfig()?.redirect.href).toBe(`${base}/api/banking/callback`);
+    vi.stubEnv("BRIDGE_REDIRECT_URL", `${proxyUrl}/api/banking/callback`);
+    expect(bankConfig()).toBeNull();
   });
 
   it("requires an authenticated session and accepts only a valid callback state", async () => {

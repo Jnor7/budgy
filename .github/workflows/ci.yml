@@ -38,4 +38,5 @@ jobs:
       - run: npm test
         env:
           BUDGY_BANKING_TEST_DATABASE_URL: postgresql://postgres:budgy_fixture@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
+      - run: npm --prefix bridge-proxy test
       - run: npx next build

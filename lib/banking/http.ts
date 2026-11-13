@@ -13,16 +13,22 @@ const redirectPath = "/api/banking/callback";
 const headers = { "cache-control": "private, no-store", "referrer-policy": "no-referrer" };
 const origin = z.url().transform((value) => new URL(value));
 
+function serverUrl(value: string | undefined) {
+  const parsed = origin.safeParse(value?.trim());
+  if (!parsed.success) return null;
+  const url = parsed.data;
+  const local = url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname);
+  if ((!local && url.protocol !== "https:") || url.username || url.password || url.search || url.hash) return null;
+  return url;
+}
 
 export function bankConfig() {
-  const id = process.env.BRIDGE_CLIENT_ID?.trim();
-  const key = process.env.BRIDGE_CLIENT_SECRET?.trim();
-  const redirect = origin.safeParse(process.env.BRIDGE_REDIRECT_URL);
-  if (!id || !key || !redirect.success || !process.env.DATABASE_URL || !usesNeon) return null;
-  const url = redirect.data;
-  const validProtocol = url.protocol === "https:" || (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname));
-  if (!validProtocol || url.pathname !== redirectPath || url.search || url.hash || url.username || url.password) return null;
-  return { id, key, redirect: url };
+  const proxyUrl = serverUrl(process.env.BUDGY_BRIDGE_PROXY_URL);
+  const proxySecret = process.env.BUDGY_PROXY_SECRET?.trim();
+  const redirect = serverUrl(process.env.BRIDGE_REDIRECT_URL);
+  if (!proxyUrl || proxyUrl.pathname !== "/" || !proxySecret || redirect?.pathname !== redirectPath ||
+      redirect.origin === proxyUrl.origin || !process.env.DATABASE_URL || !usesNeon) return null;
+  return { proxyUrl, proxySecret, redirect };
 }
 
 export const json = (value: unknown, status = 200) => Response.json(value, { status, headers });
@@ -46,7 +52,7 @@ export async function bankingRepository(request: Request) {
 export function bankingService(repo: BankingRepository) {
   const config = bankConfig();
   if (!config) throw new BankingError("unconfigured", 503);
-  return new BankingService(repo, new BridgeBankProvider(config.id, config.key, repo.userId), config.redirect);
+  return new BankingService(repo, new BridgeBankProvider(config.proxyUrl, config.proxySecret, repo.userId), config.redirect);
 }
 
 export async function bankingSessionEmail() {

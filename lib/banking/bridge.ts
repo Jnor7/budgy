@@ -6,7 +6,6 @@ import { BankingError } from "./errors";
 import type { BankAccount, BankBalance, BankConnection, BankProvider, ConnectionStatus, ConsentCallback, ConsentRequest, ConsentSession } from "./provider";
 
 const ORIGIN = "https://api.bridgeapi.io";
-const VERSION = "2025-01-15";
 const aggregation = "/v3/aggregation";
 const bridgeId = z.number().int().positive();
 const currency = z.string().regex(/^[A-Z]{3}$/);
@@ -59,8 +58,8 @@ export class BridgeBankProvider implements BankProvider {
   private tokenRequest?: Promise<Token>;
 
   constructor(
-    private readonly clientId: string,
-    private readonly clientSecret: string,
+    private readonly proxyUrl: URL,
+    private readonly proxySecret: string,
     canonicalUserId: string,
     private readonly request = fetch,
   ) {
@@ -70,10 +69,14 @@ export class BridgeBankProvider implements BankProvider {
   private async api(path: string | URL, method = "GET", body?: object, token?: string) {
     let response: Response;
     try {
-      response = await this.request(new URL(path, ORIGIN), {
-        method, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(8_000),
+      const route = new URL(path, ORIGIN);
+      const target = new URL(this.proxyUrl);
+      target.pathname = route.pathname;
+      target.search = route.search;
+      response = await this.request(target, {
+        method, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(12_000),
         headers: {
-          "Bridge-Version": VERSION, "Client-Id": this.clientId, "Client-Secret": this.clientSecret,
+          "x-budgy-proxy-secret": this.proxySecret,
           accept: "application/json",
           ...(token && { authorization: `Bearer ${token}` }),
           ...(body && { "content-type": "application/json" }),

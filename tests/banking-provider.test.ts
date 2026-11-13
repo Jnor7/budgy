@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 import { BridgeBankProvider } from "@/lib/banking/bridge";
 import type { BankProvider, ConsentRequest } from "@/lib/banking/provider";
 
+const proxyUrl = new URL("https://budgy-bridge-proxy.onrender.com");
 const canonicalId = "ef906cac-ab6b-416f-8282-c1654e608008";
 const bridgeUser = "f16282d8-0667-45aa-8a0b-c96b7e50d940";
 const itemId = 810;
@@ -28,10 +29,10 @@ function fixture() {
     const url = new URL(String(input));
     const headers = new Headers(init?.headers);
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
-    expect(url.origin).toBe("https://api.bridgeapi.io");
-    expect(headers.get("bridge-version")).toBe("2025-01-15");
-    expect(headers.get("client-id")).toBe("test-client");
-    expect(headers.get("client-secret")).toBe("test-secret");
+    expect(url.origin).toBe(proxyUrl.origin);
+    expect(headers.get("x-budgy-proxy-secret")).toBe("test-proxy-secret");
+    expect(headers.has("client-id")).toBe(false);
+    expect(headers.has("client-secret")).toBe(false);
     if (url.pathname === "/v3/providers") {
       expect(url.searchParams.get("country_code")).toBe("FR");
       expect(url.searchParams.get("capabilities")).toBe("aggregation");
@@ -89,13 +90,13 @@ function fixture() {
       });
       return Response.json({
         resources: [{ ...common, id: 16, future: false, deleted: false }],
-        pagination: { next_uri: maliciousCursor ? "https://elsewhere.example/transactions" : "/v3/aggregation/transactions?account_id=1&after=first" },
+        pagination: { next_uri: maliciousCursor ? "https://elsewhere.example/transactions" : "https://api.bridgeapi.io/v3/aggregation/transactions?account_id=1&after=first" },
       });
     }
     throw new Error("Unexpected fixture URL");
   });
   return {
-    request, provider: new BridgeBankProvider("test-client", "test-secret", canonicalId, request),
+    request, provider: new BridgeBankProvider(proxyUrl, "test-proxy-secret", canonicalId, request),
     setStatus: (value: number) => { status = value; },
     rejectNextToken: () => { retryItem = true; },
     useMaliciousCursor: () => { maliciousCursor = true; },
@@ -109,7 +110,7 @@ describe("Bridge aggregation API", () => {
     expect(await bank.listInstitutions("FR")).toEqual([lcl, { id: "29", name: "Revolut" }]);
     const session = await bank.createConnection(consent);
     expect(session).toEqual({ link, connectionId: null });
-    expect(JSON.stringify(session)).not.toMatch(/test-secret|token-1|session@example/);
+    expect(JSON.stringify(session)).not.toMatch(/test-proxy-secret|token-1|session@example/);
     await expect(bank.verifyCallback({ userId: canonicalId })).rejects.toMatchObject({ code: "invalid" });
     await bank.verifyCallback({ userId: bridgeUser });
     expect(request.mock.calls.filter(([input]) => String(input).endsWith("/authorization/token"))).toHaveLength(2);
