@@ -1,13 +1,3 @@
-export interface BudgetEnvelopeView {
-  id: string;
-  name: string;
-  category: string;
-  target: number;
-  spent: number;
-  remaining: number;
-  percent: number;
-  projection: number;
-}
 export interface BudgetDetailView {
   id: string;
   entryId: string;

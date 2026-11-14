@@ -29,30 +29,8 @@ const TONE_COLORS: Record<string, string> = {
 };
 export type Tone = keyof typeof TONE_COLORS;
 
-/** Couleurs {bg, fg} d'un ton, réutilisées par V2Icon/V2Tile et par l'icône illustrative des Sheet. */
+/** Couleurs {bg, fg} d'un ton, réutilisées par V2Icon et les Sheet. */
 export const toneStyle = (tone: Tone) => ({ background: TONE_BACKGROUNDS[tone], color: TONE_COLORS[tone] });
-
-export function V2Card({ children, className = "", as = "section" }: {
-  children: ReactNode; className?: string; as?: "section" | "div";
-}) {
-  const Tag = as;
-  return <Tag className={`v2-card ${className}`}>{children}</Tag>;
-}
-
-export function V2Tile({ icon: Icon, label, value, detail, tone = "purple" }: {
-  icon: LucideIcon; label: string; value: string; detail?: string; tone?: Tone;
-}) {
-  return (
-    <div className="v2-tile">
-      <span className="v2-tile-icon" style={{ background: TONE_BACKGROUNDS[tone], color: TONE_COLORS[tone] }}>
-        <Icon size={19} />
-      </span>
-      <span className="v2-tile-label">{label}</span>
-      <strong className="v2-tile-value" style={{ color: TONE_COLORS[tone] }}>{value}</strong>
-      {detail ? <span className="v2-tile-detail">{detail}</span> : null}
-    </div>
-  );
-}
 
 export function V2Icon({ icon: Icon, tone = "purple", size = 19 }: { icon: LucideIcon; tone?: Tone; size?: number }) {
   return (

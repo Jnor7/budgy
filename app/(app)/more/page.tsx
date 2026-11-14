@@ -92,7 +92,7 @@ export default function MorePage() {
         ) : null}
       </section>
 
-      <p className="muted small" style={{ textAlign: "center" }}>Budgy V2.5.3 · identifiant {userId.slice(0, 8)}…</p>
+      <p className="muted small" style={{ textAlign: "center" }}>Budgy · identifiant {userId.slice(0, 8)}…</p>
     </main>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Calendar, Clock3, Cloud, CloudOff, LoaderCircle, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Calendar, Clock3, Cloud, CloudOff, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
@@ -21,10 +21,6 @@ export function SyncBadge({ status, local }: { status: "idle" | "loading" | "syn
   const Icon = local ? CloudOff : status === "loading" || status === "syncing" ? LoaderCircle : Cloud;
   const label = local ? "Enregistré sur cet appareil" : status === "error" ? "Synchronisation à vérifier" : status === "loading" || status === "syncing" ? "Synchronisation…" : "Synchronisé";
   return <span className={`sync-badge sync-${status}`}><Icon size={14} className={status === "loading" || status === "syncing" ? "spin" : ""} />{label}</span>;
-}
-
-export function PremiumEmpty({ icon: Icon, title, text, action }: { icon: LucideIcon; title: string; text: string; action?: ReactNode }) {
-  return <div className="premium-empty"><span><Icon size={28} /></span><h3>{title}</h3><p>{text}</p>{action}</div>;
 }
 
 const formatAmountRaw = (value: number) => (value ? String(value).replace(".", ",") : "");

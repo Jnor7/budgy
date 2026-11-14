@@ -296,6 +296,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setReady(true);
         // Session perdue pendant l'utilisation (expirée ou fermée ailleurs) : retour à la connexion.
         if (wasSignedIn && !window.location.pathname.startsWith("/auth")) {
+          // Rechargement volontaire : il purge aussi tout état mémoire de l'ancien compte.
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
           window.location.assign(`/auth?next=${encodeURIComponent(window.location.pathname)}`);
         }
         return;

@@ -48,10 +48,7 @@ import {
   shortDate,
   toDateInput,
 } from "@/lib/format";
-import type {
-  BudgetDetailView,
-  BudgetEnvelopeView,
-} from "@/lib/budget-workflows/models";
+import type { BudgetDetailView } from "@/lib/budget-workflows/models";
 import type { BudgetEntry, Currency, EntryType } from "@/types/domain";
 
 type Draft = Pick<
@@ -135,11 +132,8 @@ export default function BudgetPage() {
   const [reportEntry, setReportEntry] = useState<BudgetEntry>();
   const [reportDate, setReportDate] = useState("");
   const [reportTitle, setReportTitle] = useState("");
-  const [envelopes, setEnvelopes] = useState<BudgetEnvelopeView[]>([]);
   const [monthDetails, setMonthDetails] = useState<BudgetDetailView[]>([]);
   const [expandedEntries, setExpandedEntries] = useState<string[]>([]);
-  const [targetEditing, setTargetEditing] = useState<BudgetEnvelopeView>();
-  const [targetDraft, setTargetDraft] = useState(0);
   const [details, setDetails] = useState<BudgetDetailView[]>([]);
   const [detailName, setDetailName] = useState("");
   const [detailBeneficiary, setDetailBeneficiary] = useState("");
@@ -234,29 +228,26 @@ export default function BudgetPage() {
     void loadDetails(entry.id);
   };
 
-  const loadMonthExtras = async (signal?: AbortSignal) => {
+  const loadMonthDetails = async (signal?: AbortSignal) => {
     const month = monthKey(selectedMonth);
-    const [envelopeResponse, detailResponse] = await Promise.all([
-      fetch(`/api/budget/envelopes?month=${month}`, { cache: "no-store", signal }),
-      fetch(`/api/budget/details?month=${month}`, { cache: "no-store", signal }),
-    ]);
-    setEnvelopes(envelopeResponse.ok ? await envelopeResponse.json() : []);
+    const detailResponse = await fetch(`/api/budget/details?month=${month}`, {
+      cache: "no-store",
+      signal,
+    });
     setMonthDetails(detailResponse.ok ? await detailResponse.json() : []);
   };
   useEffect(() => {
     const controller = new AbortController();
     const month = monthKey(selectedMonth);
-    void Promise.all([
-      fetch(`/api/budget/envelopes?month=${month}`, { cache: "no-store", signal: controller.signal }),
-      fetch(`/api/budget/details?month=${month}`, { cache: "no-store", signal: controller.signal }),
-    ])
-      .then(async ([envelopeResponse, detailResponse]) => {
-        setEnvelopes(envelopeResponse.ok ? await envelopeResponse.json() : []);
-        setMonthDetails(detailResponse.ok ? await detailResponse.json() : []);
+    void fetch(`/api/budget/details?month=${month}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        setMonthDetails(response.ok ? await response.json() : []);
       })
       .catch((reason) => {
         if (!(reason instanceof DOMException && reason.name === "AbortError")) {
-          setEnvelopes([]);
           setMonthDetails([]);
         }
       });
@@ -370,7 +361,7 @@ export default function BudgetPage() {
       setDetailBeneficiary("");
       setDetailAmount(0);
       await loadDetails(editing);
-      await loadMonthExtras();
+      await loadMonthDetails();
       showToast({ title: "Détail ajouté", tone: "success" });
     }
   };
@@ -382,19 +373,8 @@ export default function BudgetPage() {
     });
     if (response.ok && editing) {
       await loadDetails(editing);
-      await loadMonthExtras();
+      await loadMonthDetails();
     }
-  };
-  const saveTarget = async () => {
-    if (!targetEditing) return;
-    const response = await fetch("/api/budget/update-target", {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: targetEditing.id, target: targetDraft }),
-    });
-    if (!response.ok) return showToast({ title: "Modification impossible", tone: "error" });
-    setTargetEditing(undefined);
-    await loadMonthExtras();
-    showToast({ title: "Budget mensuel modifié", tone: "success" });
   };
   const scheduleDelete = (entry: BudgetEntry) => {
     if (deleteTimers.current.has(entry.id)) return;
@@ -644,24 +624,7 @@ export default function BudgetPage() {
                 <div className="budget-block-progress">
                   <i style={{ width: `${progress}%` }} />
                 </div>
-                {section.tone === "expense" ? envelopes.map((item) => (
-                  <button
-                    type="button"
-                    className="budget-jr-row budget-target-row"
-                    key={item.id}
-                    onClick={() => { setTargetEditing(item); setTargetDraft(item.target); }}
-                  >
-                    <span className="budget-row-icon"><WalletCards size={16} /></span>
-                    <span className="list-main">
-                      <strong>{item.name === "Restaurants" ? "Restaurants / fast-food" : item.name === "Divers" ? "Divers / plaisir" : item.name}</strong>
-                      <small>Dépensé {eur.format(item.spent)} · reste {eur.format(item.remaining)}</small>
-                      <i className="budget-target-progress"><b style={{ width: `${Math.min(item.percent, 100)}%` }} /></i>
-                    </span>
-                    <strong>{eur.format(item.target)}</strong>
-                    <span className="entry-actions" aria-hidden="true"><MoreHorizontal size={18} /></span>
-                  </button>
-                )) : null}
-                {visible.length === 0 && !(section.tone === "expense" && envelopes.length) ? (
+                {visible.length === 0 ? (
                   <p className="dense-empty">Aucun élément ce mois.</p>
                 ) : (
                   visible.map((entry) => {
@@ -796,20 +759,6 @@ export default function BudgetPage() {
             copyNext();
           }}
         />
-        <FormModal
-          open={Boolean(targetEditing)}
-          title={targetEditing?.name ?? "Budget mensuel"}
-          submitLabel="Enregistrer"
-          disableSubmit={targetDraft < 0}
-          onClose={() => setTargetEditing(undefined)}
-          onSubmit={() => void saveTarget()}
-          icon={WalletCards}
-          tone="purple"
-        >
-          <Field label="Objectif mensuel">
-            <AmountField size="modal" value={targetDraft} onChange={setTargetDraft} autoFocus />
-          </Field>
-        </FormModal>
         <FormModal
           open={Boolean(actionEntry)}
           title={actionEntry?.title ?? "Actions"}

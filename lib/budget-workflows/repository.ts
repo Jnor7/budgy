@@ -1,6 +1,6 @@
 import "server-only";
 import { Pool, type PoolClient } from "pg";
-import type { BudgetDetailView, BudgetEnvelopeView } from "./models";
+import type { BudgetDetailView } from "./models";
 
 let pool: Pool | undefined;
 const money = (value: unknown) => Number(value ?? 0);
@@ -37,46 +37,6 @@ export class BudgetWorkflowRepository {
     } finally {
       db.release();
     }
-  }
-  envelopes(month: string): Promise<BudgetEnvelopeView[]> {
-    return this.transaction(async (db) => {
-      const next = new Date(`${month}T12:00:00Z`);
-      next.setUTCMonth(next.getUTCMonth() + 1);
-      const elapsed =
-        month === new Date().toISOString().slice(0, 7) + "-01"
-          ? Math.min(
-              new Date().getUTCDate() /
-                new Date(
-                  Date.UTC(next.getUTCFullYear(), next.getUTCMonth(), 0),
-                ).getUTCDate(),
-              1,
-            )
-          : 1;
-      const rows = (
-        await db.query(
-          `select e.*,coalesce(sum(case when b.type='depense' and b.status='recu' and not b.is_archived and not b.exclude_from_average then b.amount else 0 end),0) spent from budget_envelopes e left join budget_entries b on lower(trim(b.category))=lower(trim(e.category)) and b.date>=e.month and b.date<(e.month+interval '1 month') where e.month=$1::date group by e.id order by e.id`,
-          [month],
-        )
-      ).rows;
-      return rows.map((row) => {
-        const target = money(row.target_amount);
-        const spent = money(row.spent);
-        return {
-          id: String(row.id),
-          name: String(row.name),
-          category: String(row.category),
-          target,
-          spent,
-          remaining: Math.max(target - spent, 0),
-          percent: target
-            ? Math.min(Math.round((spent / target) * 100), 999)
-            : 0,
-          projection: elapsed
-            ? Math.round((spent / elapsed) * 100) / 100
-            : spent,
-        };
-      });
-    });
   }
   details(entryId: string): Promise<BudgetDetailView[]> {
     return this.transaction(async (db) => {
@@ -117,15 +77,6 @@ export class BudgetWorkflowRepository {
         beneficiary: row.beneficiary, plannedAmount: money(row.planned_amount),
         actualAmount: money(row.actual_amount), status: row.status,
       }));
-    });
-  }
-  updateEnvelope(id: string, target: number) {
-    return this.transaction(async (db) => {
-      const result = await db.query(
-        "update budget_envelopes set target_amount=$2,updated_at=now() where id=$1 returning id",
-        [id, target],
-      );
-      if (!result.rowCount) throw new Error("Budget mensuel introuvable");
     });
   }
   addDetail(input: {

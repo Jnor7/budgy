@@ -121,11 +121,23 @@ describe("budget line workflows", () => {
     expect(navigation).not.toContain("/banking");
   });
 
-  it("intègre les objectifs et sous-détails directement dans la liste Budget", () => {
+  it("affiche les budgets variables comme des lignes ordinaires avec leurs sous-détails", () => {
     const page = readFileSync("app/(app)/budget/page.tsx", "utf8");
-    expect(page).not.toContain("Enveloppes<");
-    expect(page).toContain("budget-target-row");
+    expect(page).not.toContain("BudgetEnvelopeView");
+    expect(page).not.toContain("/api/budget/envelopes");
+    expect(page).not.toContain("budget-target-row");
     expect(page).toContain("budget-inline-details");
     expect(page).toContain("aria-expanded={expanded}");
+  });
+
+  it("convertit les enveloppes sans supprimer leur archive historique", () => {
+    const migration = readFileSync(
+      "neon/migrations/202611140001_convert_budget_envelopes_to_expenses.sql",
+      "utf8",
+    ).toLowerCase();
+    expect(migration).toContain("insert into public.budget_entries");
+    expect(migration).toContain("restaurants / fast-food");
+    expect(migration).toContain("divers / plaisir");
+    expect(migration).not.toMatch(/\bdrop\s+table\b|\bdelete\s+from\b/);
   });
 });
