@@ -35,6 +35,7 @@ interface DataContextValue {
   updateAndWait: <K extends AppDataKey>(key: K, id: string, patch: Partial<EntityFor<K>>) => Promise<void>;
   updateTripCoverAndWait: (tripId: string, cover: TripCoverPatch) => Promise<void>;
   remove: <K extends AppDataKey>(key: K, id: string) => void;
+  leaveTrip: (tripId: string) => Promise<void>;
   replaceAll: (data: AppData) => void;
   importArchive: (data: AppData, checksum: string) => Promise<RemoteImportResult>;
   resetDemo: () => void;
@@ -489,6 +490,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refreshTravelAfterMutation, reportError, trackMutation]);
 
+  const leaveTrip = useCallback(async (tripId: string) => {
+    const membership = dataRef.current.tripMembers.find((item) => item.tripId === tripId && item.userId === userId);
+    if (!membership) throw new Error("Vous ne faites pas partie de ce voyage.");
+    const repository = repositoryRef.current;
+    setSyncStatus("syncing");
+    try {
+      if (repository) await trackMutation(repository.leaveTrip(tripId, userId));
+      setData((current) => ({ ...current, tripMembers: current.tripMembers.filter((item) => item.id !== membership.id) }));
+      if (repository) await refreshTravelAfterMutation("tripMembers");
+      setSyncError(""); setSyncStatus("idle");
+    } catch (reason) { reportError(reason); throw reason; }
+  }, [refreshTravelAfterMutation, reportError, trackMutation, userId]);
+
   const importArchive = useCallback(async (incoming: AppData, checksum: string) => {
     // Ordre de vÃ©rification volontaire : on distingue "pas configurÃ©" (A) de
     // "configurÃ© mais pas encore prÃªt" (B) â€” voir lib/data/migration-state.ts.
@@ -792,7 +806,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [refreshBusinessNow, reportError, trackMutation]);
 
   const value = useMemo<DataContextValue>(() => ({
-    data, ready, localMode, userId, syncStatus, syncError, create, update, updateAndWait, updateTripCoverAndWait, remove,
+    data, ready, localMode, userId, syncStatus, syncError, create, update, updateAndWait, updateTripCoverAndWait, remove, leaveTrip,
     replaceAll: setData,
     importArchive,
     resetDemo: () => setData(cloneDemo()),
@@ -823,7 +837,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     repositoryReady,
     registerFastPolling,
   }), [
-    avatarUrl, create, data, directory, displayName, importArchive, inviteToTrip, localMode, markNotificationRead,
+    avatarUrl, create, data, directory, displayName, importArchive, inviteToTrip, leaveTrip, localMode, markNotificationRead,
     modules, modulesConfigured, profile, ready, reload, remove, repositoryReady, registerFastPolling, respondInvitation, saveProfile,
     saveBusinessTransaction, cancelBusinessTransaction, recordBusinessPayment, adjustBusinessStock,
     respondTravelFriendRequest, removeTravelFriend, searchAirportDirectory, loadAirportCountries, searchTravelProfiles, sendTravelFriendRequest,

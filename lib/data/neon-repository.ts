@@ -138,6 +138,13 @@ export class NeonRepository {
     if (error) throw error;
   }
 
+  async leaveTrip(tripId: string, userId: string) {
+    const { data, error } = await this.client.from("trip_members").delete()
+      .eq("trip_id", tripId).eq("user_id", userId).select("id").maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error("Votre participation à ce voyage est introuvable.");
+  }
+
   // --- V2 -------------------------------------------------------------------
 
   /** Remplace la configuration de modules de l'utilisateur en une passe. */

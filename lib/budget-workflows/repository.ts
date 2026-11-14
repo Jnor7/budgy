@@ -92,12 +92,40 @@ export class BudgetWorkflowRepository {
       ).rows;
       return rows.map((row) => ({
         id: String(row.id),
+        entryId,
         name: String(row.name),
         beneficiary: row.beneficiary,
         plannedAmount: money(row.planned_amount),
         actualAmount: money(row.actual_amount),
         status: row.status,
       }));
+    });
+  }
+  detailsForMonth(month: string): Promise<BudgetDetailView[]> {
+    return this.transaction(async (db) => {
+      const rows = (await db.query(
+        `select d.id,d.budget_entry_id,d.name,d.beneficiary,d.planned_amount,d.actual_amount,d.status
+         from finance_sub_expenses d
+         join budget_entries b on b.id=d.budget_entry_id
+         where b.date >= $1::date and b.date < ($1::date + interval '1 month')
+           and d.status <> 'CANCELLED'
+         order by d.created_at,d.id`,
+        [month],
+      )).rows;
+      return rows.map((row) => ({
+        id: String(row.id), entryId: String(row.budget_entry_id), name: String(row.name),
+        beneficiary: row.beneficiary, plannedAmount: money(row.planned_amount),
+        actualAmount: money(row.actual_amount), status: row.status,
+      }));
+    });
+  }
+  updateEnvelope(id: string, target: number) {
+    return this.transaction(async (db) => {
+      const result = await db.query(
+        "update budget_envelopes set target_amount=$2,updated_at=now() where id=$1 returning id",
+        [id, target],
+      );
+      if (!result.rowCount) throw new Error("Budget mensuel introuvable");
     });
   }
   addDetail(input: {

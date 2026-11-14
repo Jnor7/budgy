@@ -20,6 +20,11 @@ export async function GET(request: Request, context: Context) {
       return budgetJson(await repo.envelopes(month));
     }
     if (action === "details") {
+      const month = url.searchParams.get("month");
+      if (month) {
+        if (!/^\d{4}-\d{2}-01$/.test(month)) return budgetJson({ message: "Mois invalide" }, 400);
+        return budgetJson(await repo.detailsForMonth(month));
+      }
       const entryId = z.uuid().parse(url.searchParams.get("entryId"));
       return budgetJson(await repo.details(entryId));
     }
@@ -63,6 +68,11 @@ export async function POST(request: Request, context: Context) {
     if (action === "remove-detail") {
       const body = z.object({ id: z.uuid() }).parse(json);
       await repo.removeDetail(body.id);
+      return budgetJson({ ok: true });
+    }
+    if (action === "update-target") {
+      const body = z.object({ id: z.uuid(), target: z.number().min(0).max(1000000) }).parse(json);
+      await repo.updateEnvelope(body.id, body.target);
       return budgetJson({ ok: true });
     }
     return budgetJson({ message: "Introuvable" }, 404);

@@ -5,6 +5,7 @@ import {
   CalendarClock,
   Car,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Coins,
@@ -21,7 +22,7 @@ import {
   WalletCards,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { Field, FormModal, FormRow } from "@/components/ui/modal";
 import {
@@ -134,6 +135,10 @@ export default function BudgetPage() {
   const [reportDate, setReportDate] = useState("");
   const [reportTitle, setReportTitle] = useState("");
   const [envelopes, setEnvelopes] = useState<BudgetEnvelopeView[]>([]);
+  const [monthDetails, setMonthDetails] = useState<BudgetDetailView[]>([]);
+  const [expandedEntries, setExpandedEntries] = useState<string[]>([]);
+  const [targetEditing, setTargetEditing] = useState<BudgetEnvelopeView>();
+  const [targetDraft, setTargetDraft] = useState(0);
   const [details, setDetails] = useState<BudgetDetailView[]>([]);
   const [detailName, setDetailName] = useState("");
   const [detailBeneficiary, setDetailBeneficiary] = useState("");
@@ -228,17 +233,31 @@ export default function BudgetPage() {
     void loadDetails(entry.id);
   };
 
+  const loadMonthExtras = async (signal?: AbortSignal) => {
+    const month = monthKey(selectedMonth);
+    const [envelopeResponse, detailResponse] = await Promise.all([
+      fetch(`/api/budget/envelopes?month=${month}`, { cache: "no-store", signal }),
+      fetch(`/api/budget/details?month=${month}`, { cache: "no-store", signal }),
+    ]);
+    setEnvelopes(envelopeResponse.ok ? await envelopeResponse.json() : []);
+    setMonthDetails(detailResponse.ok ? await detailResponse.json() : []);
+  };
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/budget/envelopes?month=${monthKey(selectedMonth)}`, {
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then(async (response) => (response.ok ? response.json() : []))
-      .then(setEnvelopes)
+    const month = monthKey(selectedMonth);
+    void Promise.all([
+      fetch(`/api/budget/envelopes?month=${month}`, { cache: "no-store", signal: controller.signal }),
+      fetch(`/api/budget/details?month=${month}`, { cache: "no-store", signal: controller.signal }),
+    ])
+      .then(async ([envelopeResponse, detailResponse]) => {
+        setEnvelopes(envelopeResponse.ok ? await envelopeResponse.json() : []);
+        setMonthDetails(detailResponse.ok ? await detailResponse.json() : []);
+      })
       .catch((reason) => {
-        if (!(reason instanceof DOMException && reason.name === "AbortError"))
+        if (!(reason instanceof DOMException && reason.name === "AbortError")) {
           setEnvelopes([]);
+          setMonthDetails([]);
+        }
       });
     return () => controller.abort();
   }, [selectedMonth]);
@@ -346,6 +365,7 @@ export default function BudgetPage() {
       setDetailBeneficiary("");
       setDetailAmount(0);
       await loadDetails(editing);
+      await loadMonthExtras();
       showToast({ title: "Détail ajouté", tone: "success" });
     }
   };
@@ -355,7 +375,21 @@ export default function BudgetPage() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id }),
     });
-    if (response.ok && editing) await loadDetails(editing);
+    if (response.ok && editing) {
+      await loadDetails(editing);
+      await loadMonthExtras();
+    }
+  };
+  const saveTarget = async () => {
+    if (!targetEditing) return;
+    const response = await fetch("/api/budget/update-target", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: targetEditing.id, target: targetDraft }),
+    });
+    if (!response.ok) return showToast({ title: "Modification impossible", tone: "error" });
+    setTargetEditing(undefined);
+    await loadMonthExtras();
+    showToast({ title: "Budget mensuel modifié", tone: "success" });
   };
   const scheduleDelete = (entry: BudgetEntry) => {
     if (deleteTimers.current.has(entry.id)) return;
@@ -568,35 +602,6 @@ export default function BudgetPage() {
           </span>
           <ChevronRight size={17} />
         </button>
-        {envelopes.length ? (
-          <section className="budget-envelope-block">
-            <header>
-              <span>
-                <i />
-                Enveloppes<small>{envelopes.length}</small>
-              </span>
-            </header>
-            <div className="budget-envelope-grid">
-              {envelopes.map((item) => (
-                <article key={item.id}>
-                  <div>
-                    <strong>{item.name}</strong>
-                    <span>
-                      {eur.format(item.spent)} / {eur.format(item.target)}
-                    </span>
-                  </div>
-                  <i>
-                    <b style={{ width: `${Math.min(item.percent, 100)}%` }} />
-                  </i>
-                  <small>
-                    Reste {eur.format(item.remaining)} · projection{" "}
-                    {eur.format(item.projection)}
-                  </small>
-                </article>
-              ))}
-            </div>
-          </section>
-        ) : null}
         <div className="budget-sections">
           {sections.map((section) => {
             const visible = section.items.filter(
@@ -634,7 +639,24 @@ export default function BudgetPage() {
                 <div className="budget-block-progress">
                   <i style={{ width: `${progress}%` }} />
                 </div>
-                {visible.length === 0 ? (
+                {section.tone === "expense" ? envelopes.map((item) => (
+                  <button
+                    type="button"
+                    className="budget-jr-row budget-target-row"
+                    key={item.id}
+                    onClick={() => { setTargetEditing(item); setTargetDraft(item.target); }}
+                  >
+                    <span className="budget-row-icon"><WalletCards size={16} /></span>
+                    <span className="list-main">
+                      <strong>{item.name === "Restaurants" ? "Restaurants / fast-food" : item.name === "Divers" ? "Divers / plaisir" : item.name}</strong>
+                      <small>Dépensé {eur.format(item.spent)} · reste {eur.format(item.remaining)}</small>
+                      <i className="budget-target-progress"><b style={{ width: `${Math.min(item.percent, 100)}%` }} /></i>
+                    </span>
+                    <strong>{eur.format(item.target)}</strong>
+                    <span className="entry-actions" aria-hidden="true"><MoreHorizontal size={18} /></span>
+                  </button>
+                )) : null}
+                {visible.length === 0 && !(section.tone === "expense" && envelopes.length) ? (
                   <p className="dense-empty">Aucun élément ce mois.</p>
                 ) : (
                   visible.map((entry) => {
@@ -645,9 +667,11 @@ export default function BudgetPage() {
                         : section.tone === "charge"
                           ? "Payé"
                           : "Réalisé";
+                    const entryDetails = monthDetails.filter((detail) => detail.entryId === entry.id);
+                    const expanded = expandedEntries.includes(entry.id);
                     return (
+                      <Fragment key={entry.id}>
                       <SwipeRow
-                        key={entry.id}
                         label={entry.title}
                         onEdit={() => showEdit(entry)}
                         onDelete={() => scheduleDelete(entry)}
@@ -696,8 +720,22 @@ export default function BudgetPage() {
                           >
                             <MoreHorizontal size={18} />
                           </button>
+                          {entryDetails.length ? <button
+                            type="button"
+                            className="budget-detail-toggle"
+                            aria-label={`${expanded ? "Masquer" : "Afficher"} ${entryDetails.length} sous-détail(s) pour ${entry.title}`}
+                            aria-expanded={expanded}
+                            onClick={(event) => { event.stopPropagation(); setExpandedEntries((current) => expanded ? current.filter((id) => id !== entry.id) : [...current, entry.id]); }}
+                          ><span>{entryDetails.length}</span><ChevronDown size={15} /></button> : null}
                         </div>
                       </SwipeRow>
+                      {expanded ? <div className="budget-inline-details">
+                        {entryDetails.map((detail) => <div key={detail.id}>
+                          <span><strong>{detail.beneficiary || detail.name}</strong><small>{detail.beneficiary ? detail.name : "Sous-détail"}</small></span>
+                          <b>{eur.format(detail.actualAmount || detail.plannedAmount)}</b>
+                        </div>)}
+                      </div> : null}
+                      </Fragment>
                     );
                   })
                 )}
@@ -752,6 +790,20 @@ export default function BudgetPage() {
             copyNext();
           }}
         />
+        <FormModal
+          open={Boolean(targetEditing)}
+          title={targetEditing?.name ?? "Budget mensuel"}
+          submitLabel="Enregistrer"
+          disableSubmit={targetDraft < 0}
+          onClose={() => setTargetEditing(undefined)}
+          onSubmit={() => void saveTarget()}
+          icon={WalletCards}
+          tone="purple"
+        >
+          <Field label="Objectif mensuel">
+            <AmountField size="modal" value={targetDraft} onChange={setTargetDraft} autoFocus />
+          </Field>
+        </FormModal>
         <FormModal
           open={Boolean(actionEntry)}
           title={actionEntry?.title ?? "Actions"}

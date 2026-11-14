@@ -60,4 +60,8 @@ describe("trip collaboration permissions", () => {
     const participants = tripParticipants(trip, members);
     expect(participants.map((item) => item.userId).sort()).toEqual([EDITOR, OWNER, VIEWER].sort());
   });
+
+  it("masque les voyages archivés logiquement", () => {
+    expect(visibleTrips([{ ...trip, notes: "[ARCHIVED] démo" }], members, OWNER)).toEqual([]);
+  });
 });

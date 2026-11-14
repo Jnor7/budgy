@@ -15,6 +15,7 @@ import { V2Skeleton } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { canEditTrip, tripParticipants, visibleTrips } from "@/lib/domain/permissions";
 import { tripExpensesTotal } from "@/lib/domain/trip-expenses";
+import { travelFinancialSummary, type TravelFinancialSummary } from "@/lib/domain/travel-finance";
 import { tripTotals } from "@/lib/domain/trips";
 import { eur, fromDateInput, toDateInput } from "@/lib/format";
 import { destinationImageProvider } from "@/lib/travel/destination-images";
@@ -56,12 +57,12 @@ export default function TripsPage() {
 
   const spending = (trip: Trip) => {
     const expenses = data.tripExpenses.filter((item) => item.tripId === trip.id);
-    if (expenses.length > 0) return tripExpensesTotal(expenses);
-    return tripTotals(
+    const itineraryTotal = tripTotals(
       data.flights.filter((item) => item.tripId === trip.id),
       data.accommodations.filter((item) => item.tripId === trip.id),
       data.tripActivities.filter((item) => item.tripId === trip.id),
     ).totalBudget;
+    return travelFinancialSummary(trip, tripExpensesTotal(expenses), itineraryTotal);
   };
 
   const startCreate = () => { setEditing(undefined); setDraft(blank()); setOpen(true); };
@@ -141,12 +142,12 @@ export default function TripsPage() {
   </main></PullToRefresh>;
 }
 
-function TripHero({ trip, spent, participants, canEdit, canDelete, onEdit, onDelete }: { trip: Trip; spent: number; participants: number; canEdit: boolean; canDelete: boolean; onEdit: () => void; onDelete: () => void }) {
-  const progress = trip.targetBudget > 0 ? Math.min((spent / trip.targetBudget) * 100, 100) : 0;
-  return <section className="travel-hero-wrap"><TravelCover imageUrl={trip.coverImageUrl} destination={trip.title} countryCode={trip.countryCode} className="travel-hero" eager><div className="travel-hero-top"><span>{tripCountdown(trip.startDate)}</span>{canEdit ? <RowMenu onEdit={onEdit} onDelete={canDelete ? onDelete : undefined} /> : null}</div><div className="travel-hero-main"><span className="travel-kicker">Prochain voyage</span><h2>{trip.title} <em>{countryCodeToFlag(trip.countryCode)}</em></h2><p><CalendarDays size={15} /> {tripRangeLabel(trip.startDate, trip.endDate)} · {tripDayCount(trip.startDate, trip.endDate)} jours</p><p><Users size={15} /> {participants || trip.peopleCount} voyageur{(participants || trip.peopleCount) > 1 ? "s" : ""}</p></div><div className="travel-hero-budget"><div><span>Budget</span><b>{eur.format(spent)} <small>/ {eur.format(trip.targetBudget)}</small></b></div><div className="travel-progress"><i style={{ width: `${progress}%` }} /></div><Link href={`/trips/${trip.id}`}>Voir le voyage <ChevronRight size={17} /></Link></div></TravelCover>{trip.coverAttribution ? <small className="travel-attribution">{trip.coverAttribution}</small> : null}</section>;
+function TripHero({ trip, spent, participants, canEdit, canDelete, onEdit, onDelete }: { trip: Trip; spent: TravelFinancialSummary; participants: number; canEdit: boolean; canDelete: boolean; onEdit: () => void; onDelete: () => void }) {
+  const progress = trip.targetBudget > 0 ? Math.min((spent.amount / trip.targetBudget) * 100, 100) : 0;
+  return <section className="travel-hero-wrap"><TravelCover imageUrl={trip.coverImageUrl} destination={trip.title} countryCode={trip.countryCode} className="travel-hero" eager><div className="travel-hero-top"><span>{tripCountdown(trip.startDate)}</span>{canEdit ? <RowMenu onEdit={onEdit} onDelete={canDelete ? onDelete : undefined} /> : null}</div><div className="travel-hero-main"><span className="travel-kicker">Prochain voyage</span><h2>{trip.title} <em>{countryCodeToFlag(trip.countryCode)}</em></h2><p><CalendarDays size={15} /> {tripRangeLabel(trip.startDate, trip.endDate)} · {tripDayCount(trip.startDate, trip.endDate)} jours</p><p><Users size={15} /> {participants || trip.peopleCount} voyageur{(participants || trip.peopleCount) > 1 ? "s" : ""}</p></div><div className="travel-hero-budget"><div><span>{spent.label}</span><b>{eur.format(spent.amount)} <small>/ {eur.format(trip.targetBudget)}</small></b></div><div className="travel-progress"><i style={{ width: `${progress}%` }} /></div><Link href={`/trips/${trip.id}`}>Voir le voyage <ChevronRight size={17} /></Link></div></TravelCover>{trip.coverAttribution ? <small className="travel-attribution">{trip.coverAttribution}</small> : null}</section>;
 }
 
-function TripCard({ trip, spent, participants, canEdit, canDelete, onEdit, onDelete }: { trip: Trip; spent: number; participants: number; canEdit: boolean; canDelete: boolean; onEdit: () => void; onDelete: () => void }) {
-  const progress = trip.targetBudget > 0 ? Math.min((spent / trip.targetBudget) * 100, 100) : 0;
-  return <article className="travel-card"><Link href={`/trips/${trip.id}`}><TravelCover imageUrl={trip.coverImageUrl} destination={trip.title} countryCode={trip.countryCode} className="travel-card-cover" /></Link><div className="travel-card-body"><div className="travel-card-title"><Link href={`/trips/${trip.id}`}><h3>{trip.title} {countryCodeToFlag(trip.countryCode)}</h3><p>{tripRangeLabel(trip.startDate, trip.endDate)} · {tripDayCount(trip.startDate, trip.endDate)} jours</p></Link>{canEdit ? <RowMenu onEdit={onEdit} onDelete={canDelete ? onDelete : undefined} /> : null}</div><div className="travel-card-meta"><span><Users size={14} /> {participants || trip.peopleCount}</span><span>{trip.isCompleted ? "Terminé" : tripCountdown(trip.startDate)}</span></div><div className="travel-card-budget"><span><i style={{ width: `${progress}%` }} /></span><b>{eur.format(spent)} / {eur.format(trip.targetBudget)}</b></div></div></article>;
+function TripCard({ trip, spent, participants, canEdit, canDelete, onEdit, onDelete }: { trip: Trip; spent: TravelFinancialSummary; participants: number; canEdit: boolean; canDelete: boolean; onEdit: () => void; onDelete: () => void }) {
+  const progress = trip.targetBudget > 0 ? Math.min((spent.amount / trip.targetBudget) * 100, 100) : 0;
+  return <article className="travel-card"><Link href={`/trips/${trip.id}`}><TravelCover imageUrl={trip.coverImageUrl} destination={trip.title} countryCode={trip.countryCode} className="travel-card-cover" /></Link><div className="travel-card-body"><div className="travel-card-title"><Link href={`/trips/${trip.id}`}><h3>{trip.title} {countryCodeToFlag(trip.countryCode)}</h3><p>{tripRangeLabel(trip.startDate, trip.endDate)} · {tripDayCount(trip.startDate, trip.endDate)} jours</p></Link>{canEdit ? <RowMenu onEdit={onEdit} onDelete={canDelete ? onDelete : undefined} /> : null}</div><div className="travel-card-meta"><span><Users size={14} /> {participants || trip.peopleCount}</span><span>{trip.isCompleted ? "Terminé" : tripCountdown(trip.startDate)}</span></div><div className="travel-card-budget"><span><i style={{ width: `${progress}%` }} /></span><b title={spent.label}>{spent.basis === "estimated" ? "≈ " : ""}{eur.format(spent.amount)} / {eur.format(trip.targetBudget)}</b></div></div></article>;
 }

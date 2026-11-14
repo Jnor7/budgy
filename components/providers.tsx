@@ -1,4 +1,5 @@
 "use client";
 import { QueryClient,QueryClientProvider } from "@tanstack/react-query"; import { useState } from "react"; import { DataProvider } from "@/lib/data/data-provider";
+import { AppLoadingGate } from "@/components/app-loading-gate";
 import { ToastProvider } from "@/components/ui/feedback";
-export function Providers({children}:{children:React.ReactNode}) { const [queryClient]=useState(()=>new QueryClient({defaultOptions:{queries:{staleTime:30_000,retry:1}}})); return <QueryClientProvider client={queryClient}><ToastProvider><DataProvider>{children}</DataProvider></ToastProvider></QueryClientProvider>; }
+export function Providers({children}:{children:React.ReactNode}) { const [queryClient]=useState(()=>new QueryClient({defaultOptions:{queries:{staleTime:30_000,retry:1}}})); return <QueryClientProvider client={queryClient}><ToastProvider><DataProvider><AppLoadingGate>{children}</AppLoadingGate></DataProvider></ToastProvider></QueryClientProvider>; }

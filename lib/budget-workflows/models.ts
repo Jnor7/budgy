@@ -10,6 +10,7 @@ export interface BudgetEnvelopeView {
 }
 export interface BudgetDetailView {
   id: string;
+  entryId: string;
   name: string;
   beneficiary: string | null;
   plannedAmount: number;

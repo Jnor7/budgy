@@ -14,6 +14,8 @@ import { V2Avatar, V2Skeleton } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
 import { canManageTripMembers, roleLabel, tripParticipants, tripRole } from "@/lib/domain/permissions";
 import { tripExpensesTotal } from "@/lib/domain/trip-expenses";
+import { travelFinancialSummary } from "@/lib/domain/travel-finance";
+import { tripTotals } from "@/lib/domain/trips";
 import { eur, shortDate } from "@/lib/format";
 import { buildItinerary } from "@/lib/travel/itinerary";
 import { countryCodeToFlag } from "@/lib/travel/destinations";
@@ -50,7 +52,8 @@ export default function TripDetailPage() {
   const participants = tripParticipants(trip, data.tripMembers);
   const role = tripRole(trip, data.tripMembers, userId);
   const canManage = canManageTripMembers(trip, data.tripMembers, userId);
-  const spent = tripExpensesTotal(expenses);
+  const finance = travelFinancialSummary(trip, tripExpensesTotal(expenses), tripTotals(flights, stays, activities).totalBudget);
+  const spent = finance.amount;
   const completedChecks = checks.filter((item) => item.isDone).length;
   const itinerary = buildItinerary(flights, stays, activities);
   const openItineraryForm = (kind: ItineraryKind) => { setItineraryRequest(kind); setTab("itinerary"); };
@@ -66,7 +69,7 @@ export default function TripDetailPage() {
       <Summary icon={Plane} label="Vols" value={String(flights.length)} />
       <Summary icon={BedDouble} label="Logements" value={String(stays.length)} />
       <Summary icon={MapPin} label="Activités" value={String(activities.length)} />
-      <Summary icon={Wallet} label="Dépensé" value={eur.format(spent)} />
+      <Summary icon={Wallet} label={finance.label} value={`${finance.basis === "estimated" ? "≈ " : ""}${eur.format(spent)}`} />
       <Summary icon={ClipboardCheck} label="Checklist" value={`${completedChecks}/${checks.length}`} />
     </section>
 

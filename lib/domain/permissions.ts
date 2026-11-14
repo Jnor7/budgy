@@ -28,12 +28,14 @@ export const canManageTripMembers = (trip: Trip | undefined, members: TripMember
 
 export const canDeleteTrip = canManageTripMembers;
 
+export const isTripArchived = (trip: Trip) => /^\[ARCHIVED\]/i.test(trip.notes.trim());
+
 /** Voyages visibles : les miens + ceux où je suis membre accepté. */
 export function visibleTrips(trips: Trip[], members: TripMember[], userId: UUID): Trip[] {
   const shared = new Set(
     members.filter((member) => member.userId === userId && member.status === "accepted").map((member) => member.tripId),
   );
-  return trips.filter((trip) => trip.userId === userId || shared.has(trip.id));
+  return trips.filter((trip) => !isTripArchived(trip) && (trip.userId === userId || shared.has(trip.id)));
 }
 
 /** Participants acceptés d'un voyage, propriétaire inclus. */

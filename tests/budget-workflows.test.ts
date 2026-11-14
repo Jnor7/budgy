@@ -120,4 +120,12 @@ describe("budget line workflows", () => {
     expect(navigation).not.toContain("/finance");
     expect(navigation).not.toContain("/banking");
   });
+
+  it("intègre les objectifs et sous-détails directement dans la liste Budget", () => {
+    const page = readFileSync("app/(app)/budget/page.tsx", "utf8");
+    expect(page).not.toContain("Enveloppes<");
+    expect(page).toContain("budget-target-row");
+    expect(page).toContain("budget-inline-details");
+    expect(page).toContain("aria-expanded={expanded}");
+  });
 });

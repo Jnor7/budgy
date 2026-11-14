@@ -1,8 +1,9 @@
 "use client";
 
-import { Clock3, Plus, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
+import { Clock3, LogOut, Plus, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useToast } from "@/components/ui/feedback";
+import { useRouter } from "next/navigation";
+import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { Field, FormModal } from "@/components/ui/modal";
 import { V2Avatar } from "@/components/ui/v2";
 import { useBudgyData } from "@/lib/data/data-provider";
@@ -10,7 +11,8 @@ import { canManageTripMembers, roleLabel, tripParticipants } from "@/lib/domain/
 import type { Trip } from "@/types/domain";
 
 export function TripMembersPanel({ trip }: { trip: Trip }) {
-  const { data, userId, displayName, avatarUrl, inviteToTrip, remove, localMode, registerFastPolling } = useBudgyData();
+  const { data, userId, displayName, avatarUrl, inviteToTrip, remove, leaveTrip, localMode, registerFastPolling } = useBudgyData();
+  const router = useRouter();
   // Ecran fortement collaboratif (membres + invitation) : sondage accelere
   // tant que cet onglet du voyage reste affiche.
   useEffect(() => registerFastPolling(), [registerFastPolling]);
@@ -19,8 +21,10 @@ export function TripMembersPanel({ trip }: { trip: Trip }) {
   const [handle, setHandle] = useState("");
   const [role, setRole] = useState<"editor" | "viewer">("editor");
   const [busy, setBusy] = useState(false);
+  const [leaveConfirm, setLeaveConfirm] = useState(false);
   const participants = useMemo(() => tripParticipants(trip, data.tripMembers), [data.tripMembers, trip]);
   const canManage = canManageTripMembers(trip, data.tripMembers, userId);
+  const ownMembership = data.tripMembers.find((member) => member.tripId === trip.id && member.userId === userId && member.status === "accepted");
   const pending = data.tripMembers.filter((member) => member.tripId === trip.id && member.status === "pending");
   const friends = data.travelFriends.filter((friend) => friend.userA === userId || friend.userB === userId).map((friend) => friend.userA === userId ? friend.userB : friend.userA).filter((id) => !participants.some((participant) => participant.userId === id) && !pending.some((member) => member.userId === id));
 
@@ -34,6 +38,17 @@ export function TripMembersPanel({ trip }: { trip: Trip }) {
     } catch { showToast({ title: "Invitation impossible", detail: localMode ? "Connectez Neon pour inviter un membre." : "Vérifiez le pseudo et réessayez.", tone: "error" }); }
     finally { setBusy(false); }
   };
+  const confirmLeave = async () => {
+    if (busy || !ownMembership || trip.userId === userId) return;
+    setBusy(true);
+    try {
+      await leaveTrip(trip.id);
+      showToast({ title: "Vous avez quitté le voyage", detail: "Le voyage et son historique restent accessibles aux autres membres.", tone: "success" });
+      router.push("/trips");
+    } catch (reason) {
+      showToast({ title: "Impossible de quitter le voyage", detail: reason instanceof Error ? reason.message : "Réessayez dans un instant.", tone: "error" });
+    } finally { setBusy(false); setLeaveConfirm(false); }
+  };
 
   return <div className="travel-tab-stack"><section className="travel-panel"><header className="travel-section-head"><div><span className="travel-eyebrow">Équipe du voyage</span><h2>{participants.length} voyageur{participants.length > 1 ? "s" : ""}</h2></div>{canManage ? <button className="travel-button travel-button-soft" onClick={() => setOpen(true)}><UserPlus size={16} /> Inviter</button> : null}</header>
     <div className="travel-member-avatars">{participants.slice(0, 8).map((participant) => <V2Avatar key={participant.userId} name={displayName(participant.userId)} url={avatarUrl(participant.userId)} />)}</div>
@@ -41,5 +56,7 @@ export function TripMembersPanel({ trip }: { trip: Trip }) {
     {pending.map((member) => <div className="travel-member-row is-pending" key={member.id}><V2Avatar name={displayName(member.userId)} url={avatarUrl(member.userId)} /><div><strong>{displayName(member.userId)}</strong><span>Invitation envoyée</span></div><span className="travel-role"><Clock3 size={14} /> En attente</span></div>)}
   </section>
   {canManage ? <section className="travel-panel"><header className="travel-section-head"><div><span className="travel-eyebrow">Invitation rapide</span><h2>Mes amis</h2></div><Users size={22} /></header>{friends.length === 0 ? <div className="travel-inline-empty"><span><Users size={22} /></span><div><strong>Votre cercle est à jour</strong><p>Ajoutez des amis depuis le dashboard Voyages pour les retrouver ici.</p></div></div> : friends.map((friendId) => <div className="travel-friend-row" key={friendId}><V2Avatar name={displayName(friendId)} url={avatarUrl(friendId)} /><div><strong>{displayName(friendId)}</strong><span>Ami de voyage</span></div><button className="travel-button travel-button-soft" onClick={() => void invite(displayName(friendId))}><Plus size={15} /> Inviter</button></div>)}</section> : null}
+  {!canManage && ownMembership ? <section className="travel-panel travel-leave-panel"><div><strong>Quitter ce voyage</strong><p>Votre participation sera retirée, sans supprimer le voyage ni son historique.</p></div><button type="button" onClick={() => setLeaveConfirm(true)}><LogOut size={16} /> Quitter le voyage</button></section> : null}
+  <ConfirmDialog open={leaveConfirm} title="Quitter le voyage ?" detail="Vous ne serez plus membre. Le voyage, les dépenses et les autres participants seront conservés." confirmLabel={busy ? "Départ…" : "Quitter"} onCancel={() => !busy && setLeaveConfirm(false)} onConfirm={() => void confirmLeave()} />
   <FormModal open={open} title="Inviter au voyage" submitLabel={busy ? "Envoi…" : "Envoyer l’invitation"} disableSubmit={!handle.trim() || busy} onClose={() => { setHandle(""); setOpen(false); }} onSubmit={() => void invite()} icon={UserPlus} tone="cyan"><div className="form-grid"><Field label="Pseudo Budgy"><input className="input" value={handle} onChange={(event) => setHandle(event.target.value)} placeholder="Pseudo" /></Field><Field label="Permission"><select className="select" value={role} onChange={(event) => setRole(event.target.value as "editor" | "viewer")}><option value="editor">Membre · peut modifier</option><option value="viewer">Lecture seule</option></select></Field><p className="travel-form-intro">L’invité recevra une notification avec les actions Rejoindre ou Refuser.</p></div></FormModal></div>;
 }
