@@ -11,6 +11,7 @@ describe("AppLoadingGate", () => {
 
   it("ne clignote pas quand les données sont disponibles immédiatement", () => {
     const view = render(<AppLoadingGate><p>Contenu</p></AppLoadingGate>);
+    expect(screen.queryByRole("status")).toBeNull();
     state.ready = true; view.rerender(<AppLoadingGate><p>Contenu</p></AppLoadingGate>);
     act(() => vi.advanceTimersByTime(appLoadingTiming.showDelay + 20));
     expect(screen.queryByRole("status")).toBeNull();
@@ -21,6 +22,7 @@ describe("AppLoadingGate", () => {
     const view = render(<AppLoadingGate><p>Contenu</p></AppLoadingGate>);
     act(() => vi.advanceTimersByTime(appLoadingTiming.showDelay));
     expect(screen.getByRole("status")).toBeTruthy();
+    expect(document.querySelector(".app-loading-logo")?.getAttribute("src")).toContain("budgy-icon-192.png");
     state.ready = true; view.rerender(<AppLoadingGate><p>Contenu</p></AppLoadingGate>);
     act(() => vi.advanceTimersByTime(appLoadingTiming.minimumVisible + appLoadingTiming.exitDuration));
     expect(screen.queryByRole("status")).toBeNull();

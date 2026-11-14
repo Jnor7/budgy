@@ -1,11 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { useBudgyData } from "@/lib/data/data-provider";
 
 const SHOW_DELAY_MS = 180;
 const MIN_VISIBLE_MS = 520;
-const EXIT_MS = 260;
+const EXIT_MS = 220;
 
 export function AppLoadingGate({ children }: { children: React.ReactNode }) {
   const { ready } = useBudgyData();
@@ -15,6 +16,7 @@ export function AppLoadingGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!ready) {
+      if (visible) return undefined;
       const timer = window.setTimeout(() => {
         shownAt.current = performance.now();
         setLeaving(false);
@@ -36,15 +38,24 @@ export function AppLoadingGate({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      {visible ? (
+      {!ready || visible ? (
         <div
-          className={`app-loading-screen ${leaving ? "is-leaving" : ""}`}
-          role="status"
-          aria-live="polite"
-          aria-label="Chargement de Budgy"
+          className={`app-loading-screen ${visible ? "has-brand" : "is-waiting"} ${leaving ? "is-leaving" : ""}`}
+          role={visible ? "status" : undefined}
+          aria-live={visible ? "polite" : undefined}
+          aria-label={visible ? "Chargement de Budgy" : undefined}
         >
           <div className="app-loading-brand" aria-hidden="true">
-            <span className="app-loading-mark">B</span>
+            <span className="app-loading-mark">
+              <Image
+                className="app-loading-logo"
+                src="/icons/budgy-icon-192.png"
+                alt=""
+                width={76}
+                height={76}
+                priority
+              />
+            </span>
             <strong>Budgy</strong>
             <i><b /></i>
           </div>

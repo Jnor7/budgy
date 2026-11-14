@@ -23,6 +23,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { BudgetQuickComplete } from "@/components/budget/budget-quick-complete";
 import { ConfirmDialog, useToast } from "@/components/ui/feedback";
 import { Field, FormModal, FormRow } from "@/components/ui/modal";
 import {
@@ -286,6 +287,10 @@ export default function BudgetPage() {
     setOpen(false);
   };
   const markComplete = (entry: BudgetEntry) => {
+    if (entry.status === "recu") {
+      setActionEntry(undefined);
+      return;
+    }
     update("budgetEntries", entry.id, {
       status: "recu",
       paymentStatus: entry.type === "revenu" ? "received" : "paid",
@@ -712,6 +717,7 @@ export default function BudgetPage() {
                               entry.currency,
                             )}
                           </strong>
+                          <BudgetQuickComplete entry={entry} onComplete={markComplete} />
                           <button
                             type="button"
                             className="entry-actions"
